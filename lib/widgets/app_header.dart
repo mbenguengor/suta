@@ -5,8 +5,10 @@ class AppHeader extends StatelessWidget {
   final List<Person> people;
   final int selectedPersonIndex;
 
+  /// Bell controls whether the app is allowed to send phone notifications.
   final bool notificationsEnabled;
   final VoidCallback onToggleNotifications;
+
   final VoidCallback onOpenProfile;
 
   final VoidCallback? onNextPerson;
@@ -61,17 +63,19 @@ class AppHeader extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 10),
+
+                // ✅ Bell = allow/deny phone notifications
                 IconButton(
-                  tooltip: notificationsEnabled
-                      ? "Notifications on"
-                      : "Notifications off",
+                  tooltip:
+                      notificationsEnabled ? "Notifications on" : "Notifications off",
                   onPressed: onToggleNotifications,
                   icon: Icon(
                     notificationsEnabled
-                        ? Icons.notifications_active_outlined
+                        ? Icons.notifications_none
                         : Icons.notifications_off_outlined,
                   ),
                 ),
+
                 const SizedBox(width: 6),
                 InkWell(
                   onTap: onOpenProfile,
@@ -339,3 +343,8 @@ Color _colorFor(String key) {
   ];
   return colors[hash % colors.length];
 }
+
+
+
+
+

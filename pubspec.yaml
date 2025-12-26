@@ -13,7 +13,8 @@ dependencies:
   permission_handler: ^11.3.1
   shared_preferences: ^2.2.3
   image_picker: ^1.1.2
-
+  url_launcher: ^6.3.0
+  share_plus: ^10.0.2
 
   cupertino_icons: ^1.0.8
 

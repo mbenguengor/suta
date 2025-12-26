@@ -35,8 +35,17 @@ class _SettingsPageState extends State<SettingsPage> {
   final GlobalKey _emailEditKey = GlobalKey();
   final GlobalKey _passwordEditKey = GlobalKey();
 
+  // ✅ Keys (kept)
+  final GlobalKey _helpArrowKey = GlobalKey();
+  final GlobalKey _infoArrowKey = GlobalKey();
+  final GlobalKey _inviteArrowKey = GlobalKey();
+
   // ✅ prevent multiple popovers at once (overlap)
   bool _popoverOpen = false;
+
+  // ✅ INLINE panels state (part of page)
+  bool _infoInlineOpen = false;
+  bool _helpInlineOpen = false;
 
   // ---- layout tuning ----
   static const double _avatarRadius = 18; // small like footer
@@ -47,6 +56,15 @@ class _SettingsPageState extends State<SettingsPage> {
   // ---- shared popover form style (email + password SAME) ----
   static const TextStyle _popoverTextStyle = TextStyle(fontSize: 14);
   static const double _fieldGap = 10;
+
+  // ---- app info (edit if needed) ----
+  static const String _appName = "SUTA";
+  static const String _appVersion = "0.0.1";
+  static const String _appReleaseDate = "2025-12-25"; // change later if needed
+
+  // ✅ Invite message (placeholder link for now)
+  static const String _inviteMessage =
+      "Check out SUTA app. It will allows you to never left something behind again https://example.com/download";
 
   InputDecoration _popoverDeco(String hint, {Widget? suffix}) {
     return InputDecoration(
@@ -82,10 +100,181 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   // -------------------------
+  // ✅ Shared: side sheet that starts exactly UNDER header divider
+  // -------------------------
+  Future<void> _openRightSheetFromHeaderStop({
+    required String title,
+    required Widget body,
+    double widthFactor = 0.66,
+  }) async {
+    final mq = MediaQuery.of(context);
+
+    const double headerHeight = 72.0;
+    const double dividerThickness = 1.0;
+    final double topOffset = mq.padding.top + headerHeight + dividerThickness;
+
+    await showGeneralDialog(
+      context: context,
+      barrierLabel: "sheet",
+      barrierDismissible: true,
+      barrierColor: Colors.black.withOpacity(0.10),
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (ctx, a1, a2) => const SizedBox.shrink(),
+      transitionBuilder: (ctx, anim, sec, child) {
+        final curved = CurvedAnimation(parent: anim, curve: Curves.easeOut);
+
+        return Align(
+          alignment: Alignment.centerRight,
+          child: FractionallySizedBox(
+            widthFactor: widthFactor,
+            heightFactor: 1,
+            child: Material(
+              color: Colors.transparent,
+              child: Padding(
+                padding: EdgeInsets.only(top: topOffset),
+                child: Material(
+                  color: Colors.white,
+                  elevation: 16,
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 14, 12, 10),
+                        child: Row(
+                          children: [
+                            IconButton(
+                              tooltip: "Back",
+                              onPressed: () => Navigator.of(ctx).pop(),
+                              icon: const Icon(Icons.arrow_back),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w400, // ✅ not bold
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 1, thickness: 1, color: Color(0xFFE6E8EF)),
+                      Expanded(child: body),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ).buildSlide(curved);
+      },
+    );
+  }
+
+  // -------------------------
+  // Privacy sheets (start under header divider)
+  // -------------------------
+  void _openPrivacyKidsSheet() {
+    _openRightSheetFromHeaderStop(
+      title: "Privacy notice for kids",
+      body: const _PrivacyKidsScrollable(),
+      widthFactor: 0.66,
+    );
+  }
+
+  void _openPrivacyAdultsSheet() {
+    _openRightSheetFromHeaderStop(
+      title: "Privacy notice for adults",
+      body: const _PrivacyAdultsScrollable(),
+      widthFactor: 0.66,
+    );
+  }
+
+  // -------------------------
+  // ✅ INLINE Help & Feedback (wrap to 2nd line when needed)
+  // -------------------------
+  void _toggleHelpInline() {
+    setState(() => _helpInlineOpen = !_helpInlineOpen);
+  }
+
+  Widget _helpInlinePanel() {
+    const base = TextStyle(fontSize: 16, height: 1.25, color: Color(0xFF111827));
+    const email = TextStyle(fontSize: 16, height: 1.25, color: Color(0xFF2563EB));
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(_tileDividerIndent, 8, 12, 10),
+      child: RichText(
+        maxLines: 2,
+        softWrap: true,
+        overflow: TextOverflow.ellipsis,
+        text: const TextSpan(
+          style: base,
+          children: [
+            TextSpan(text: "You can request support or leave feedback by sending an email to: "),
+            TextSpan(text: "support@suta.com", style: email),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // -------------------------
+  // ✅ INLINE Infos & licenses
+  // -------------------------
+  void _toggleInfoInline() {
+    setState(() => _infoInlineOpen = !_infoInlineOpen);
+  }
+
+  Widget _infoInlinePanel() {
+    const String osValue = "Android";
+
+    const titleStyle = TextStyle(fontSize: 13.5, height: 1.2, color: Color(0xFF6B7280));
+    const infoStyle = TextStyle(fontSize: 13.5, height: 1.2, color: Color(0xFF111827));
+
+    Widget row(String title, String info) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(width: 92, child: Text(title, style: infoStyle)),
+              Expanded(child: Text(info, style: titleStyle)),
+            ],
+          ),
+        );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(_tileDividerIndent, 8, 12, 10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          row("App Name", _appName),
+          row("Version", _appVersion),
+          row("Release date", _appReleaseDate),
+          row("IOS", osValue),
+        ],
+      ),
+    );
+  }
+
+  // -------------------------
+  // ✅ Invite a Friend sheet (start under header divider)
+  // -------------------------
+  Future<void> _openInviteSheet() async {
+    await _openRightSheetFromHeaderStop(
+      title: "Select contact you want to send a invivation to:",
+      widthFactor: 0.75, // ✅ 3/4 sheet
+      body: _InviteContactsSheet(
+        messageBody: _inviteMessage,
+      ),
+    );
+  }
+
+  // -------------------------
   // Avatar picker UI + logic
   // -------------------------
-
-  // List of “app provided” avatars (icons). Replace with your own assets later if you want.
   static const List<IconData> _availableAvatars = [
     Icons.face_retouching_natural_outlined,
     Icons.sentiment_satisfied_alt_outlined,
@@ -111,7 +300,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
       setState(() {
         _profileFile = File(picked.path);
-        _selectedAvatarIcon = null; // camera overrides avatar icon
+        _selectedAvatarIcon = null;
       });
     } catch (_) {
       if (!mounted) return;
@@ -131,7 +320,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
       setState(() {
         _profileFile = File(picked.path);
-        _selectedAvatarIcon = null; // gallery overrides avatar icon
+        _selectedAvatarIcon = null;
       });
     } catch (_) {
       if (!mounted) return;
@@ -173,7 +362,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 label: "Choose an avatar",
                 onTap: () async {
                   close();
-                  // wait 1 tick so the first popover fully closes before opening the next
                   await Future.delayed(const Duration(milliseconds: 10));
                   if (!mounted) return;
                   await _showAvatarGridPopover();
@@ -206,7 +394,6 @@ class _SettingsPageState extends State<SettingsPage> {
       anchorKey: _avatarEditKey,
       builder: (close, popConstraints) {
         final maxH = popConstraints.maxHeight;
-        // leave some space for padding
         final gridMaxH = (maxH - 18).clamp(140.0, maxH);
 
         return Padding(
@@ -239,7 +426,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       onTap: () {
                         setState(() {
                           _selectedAvatarIcon = icon;
-                          _profileFile = null; // avatar overrides image
+                          _profileFile = null;
                         });
                         close();
                       },
@@ -248,9 +435,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           color: const Color(0xFFF3F4F6),
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        child: Center(
-                          child: Icon(icon, size: 26),
-                        ),
+                        child: Center(child: Icon(icon, size: 26)),
                       ),
                     );
                   },
@@ -259,10 +444,7 @@ class _SettingsPageState extends State<SettingsPage> {
               const SizedBox(height: 10),
               Align(
                 alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: close,
-                  child: const Text("Cancel"),
-                ),
+                child: TextButton(onPressed: close, child: const Text("Cancel")),
               ),
             ],
           ),
@@ -318,7 +500,6 @@ class _SettingsPageState extends State<SettingsPage> {
     FocusManager.instance.primaryFocus?.unfocus();
   }
 
-  // ✅ Measure text width so the field stays short and grows while typing
   double _measureTextWidth({
     required String text,
     required TextStyle style,
@@ -336,10 +517,11 @@ class _SettingsPageState extends State<SettingsPage> {
     return w.toDouble();
   }
 
-  // ✅ Responsive anchored popover shown under a widget
-  // ✅ recompute sizing/position INSIDE dialog so it reacts to screen resize
+  // ✅ Responsive anchored popover shown under a widget (avatar/email/password)
   Future<T?> _showAnchoredPopover<T>({
     required GlobalKey anchorKey,
+    double? desiredWidth,
+    bool alignRightToAnchor = false,
     required Widget Function(VoidCallback close, BoxConstraints popConstraints) builder,
   }) async {
     if (_popoverOpen) return null;
@@ -376,20 +558,27 @@ class _SettingsPageState extends State<SettingsPage> {
                   if (anchorCtx == null) return const SizedBox.shrink();
 
                   final anchorBox = anchorCtx.findRenderObject() as RenderBox;
+
                   final anchorTopLeft = anchorBox.localToGlobal(Offset.zero, ancestor: overlayBox);
                   final anchorBottomLeft = anchorBox.localToGlobal(
                     Offset(0, anchorBox.size.height),
+                    ancestor: overlayBox,
+                  );
+                  final anchorBottomRight = anchorBox.localToGlobal(
+                    Offset(anchorBox.size.width, anchorBox.size.height),
                     ancestor: overlayBox,
                   );
 
                   const double margin = 12;
                   const double gap = 8;
 
-                  // ✅ fixed target width (shrinks on smaller screens)
+                  final double target = desiredWidth ?? 260.0;
                   final double popoverWidth =
-                      (260.0).clamp(180.0, screenW - (margin * 2)).toDouble();
+                      (target).clamp(160.0, screenW - (margin * 2)).toDouble();
 
-                  double left = anchorBottomLeft.dx;
+                  double left =
+                      alignRightToAnchor ? (anchorBottomRight.dx - popoverWidth) : anchorBottomLeft.dx;
+
                   if (left + popoverWidth > screenW - margin) {
                     left = (screenW - popoverWidth - margin).clamp(margin, screenW);
                   }
@@ -399,10 +588,10 @@ class _SettingsPageState extends State<SettingsPage> {
                   final double availableBelow = (effectiveH - margin) - topBelow;
                   final double availableAbove = (anchorTopLeft.dy - margin) - gap;
 
-                  final bool placeAbove = availableBelow < 200 && availableAbove > availableBelow;
+                  final bool placeAbove = availableBelow < 140 && availableAbove > availableBelow;
 
                   final double maxHeight = (placeAbove ? availableAbove : availableBelow)
-                      .clamp(180.0, effectiveH - (margin * 2))
+                      .clamp(90.0, effectiveH - (margin * 2))
                       .toDouble();
 
                   final popConstraints = BoxConstraints(
@@ -500,7 +689,6 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     const nameStyle = TextStyle(fontSize: 18);
 
-    // Decide what to show inside CircleAvatar
     Widget avatarChild() {
       if (_profileFile != null) return const SizedBox.shrink();
       if (_selectedAvatarIcon != null) return Icon(_selectedAvatarIcon, size: 18);
@@ -520,10 +708,9 @@ class _SettingsPageState extends State<SettingsPage> {
             children: [
               Row(
                 children: [
-                  // ✅ CLICKABLE AVATAR (ANCHOR KEY HERE)
                   InkWell(
                     key: _avatarEditKey,
-                    onTap: _showAvatarPopover, // ✅ anchored dialog below avatar
+                    onTap: _showAvatarPopover,
                     borderRadius: BorderRadius.circular(999),
                     child: CircleAvatar(
                       radius: _avatarRadius,
@@ -532,16 +719,13 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ),
                   const SizedBox(width: 12),
-
-                  // ✅ short field that grows + pushes icons
                   Expanded(
                     child: LayoutBuilder(
                       builder: (context, c) {
                         const double iconAreaEdit = (4 + 18 + 4) * 2 + 4;
                         const double iconAreaView = (4 + 16 + 4);
                         final double reserved = _isEditingName ? iconAreaEdit : iconAreaView;
-                        final double maxFieldWidth =
-                            (c.maxWidth - reserved).clamp(80.0, c.maxWidth);
+                        final double maxFieldWidth = (c.maxWidth - reserved).clamp(80.0, c.maxWidth);
 
                         return AnimatedBuilder(
                           animation: _nameController,
@@ -629,7 +813,6 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ],
               ),
-
               if (_isEditingName && _nameEmptyError) ...[
                 const SizedBox(height: 4),
                 const Align(
@@ -643,11 +826,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
               ],
-
               const SizedBox(height: 12),
               const Divider(height: 1, thickness: 1, color: _dividerColor),
               const SizedBox(height: 8),
-
               _KeyValueEditRowTight(
                 leftIndent: _nameStartIndent,
                 label: "Email",
@@ -668,7 +849,6 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
         ),
-
         const SizedBox(height: 12),
 
         _Card(
@@ -693,20 +873,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   );
                 },
               ),
-              const Divider(height: 1, thickness: 1, color: _dividerColor, indent: _tileDividerIndent),
-              _SimpleTile(
-                icon: Icons.notifications_none,
-                title: "Notifications",
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Notification settings (next step)")),
-                  );
-                },
-              ),
             ],
           ),
         ),
-
         const SizedBox(height: 12),
 
         _Card(
@@ -715,26 +884,17 @@ class _SettingsPageState extends State<SettingsPage> {
               _SimpleTile(
                 icon: Icons.shield_outlined,
                 title: "Privacy notice for kids",
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Privacy notice for kids (next step)")),
-                  );
-                },
+                onTap: _openPrivacyKidsSheet,
               ),
               const Divider(height: 1, thickness: 1, color: _dividerColor, indent: _tileDividerIndent),
               _SimpleTile(
                 icon: Icons.shield_outlined,
-                title: "Privacy notice for parents",
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Privacy notice for parents (next step)")),
-                  );
-                },
+                title: "Privacy notice for adults",
+                onTap: _openPrivacyAdultsSheet,
               ),
             ],
           ),
         ),
-
         const SizedBox(height: 12),
 
         _Card(
@@ -743,26 +903,39 @@ class _SettingsPageState extends State<SettingsPage> {
               _SimpleTile(
                 icon: Icons.help_outline,
                 title: "Help & feedback",
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Help & feedback (next step)")),
-                  );
-                },
+                onTap: _toggleHelpInline,
+                arrowKey: _helpArrowKey,
+                trailingOverride: AnimatedRotation(
+                  turns: _helpInlineOpen ? 0.25 : 0.0,
+                  duration: const Duration(milliseconds: 160),
+                  curve: Curves.easeOut,
+                  child: const Icon(Icons.keyboard_arrow_right, size: 16),
+                ),
               ),
+              if (_helpInlineOpen) ...[
+                const Divider(height: 1, thickness: 1, color: _dividerColor, indent: _tileDividerIndent),
+                _helpInlinePanel(),
+              ],
               const Divider(height: 1, thickness: 1, color: _dividerColor, indent: _tileDividerIndent),
               _SimpleTile(
-                icon: Icons.share_outlined,
-                title: "Invite a friend",
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Invite a friend (next step)")),
-                  );
-                },
+                icon: Icons.info_outline,
+                title: "Infos & licenses",
+                onTap: _toggleInfoInline,
+                arrowKey: _infoArrowKey,
+                trailingOverride: AnimatedRotation(
+                  turns: _infoInlineOpen ? 0.25 : 0.0,
+                  duration: const Duration(milliseconds: 160),
+                  curve: Curves.easeOut,
+                  child: const Icon(Icons.keyboard_arrow_right, size: 16),
+                ),
               ),
+              if (_infoInlineOpen) ...[
+                const Divider(height: 1, thickness: 1, color: _dividerColor, indent: _tileDividerIndent),
+                _infoInlinePanel(),
+              ],
             ],
           ),
         ),
-
         const SizedBox(height: 12),
 
         _Card(
@@ -770,15 +943,438 @@ class _SettingsPageState extends State<SettingsPage> {
           child: Column(
             children: [
               _SimpleTile(
-                icon: Icons.info_outline,
-                title: "Infos & licenses",
+                icon: Icons.share_outlined,
+                title: "Invite a friend",
                 compact: true,
-                onTap: () {
-                  showLicensePage(context: context, applicationName: "SUTA");
-                },
+                onTap: _openInviteSheet,
+                arrowKey: _inviteArrowKey,
               ),
             ],
           ),
+        ),
+      ],
+    );
+  }
+}
+
+extension _SlideExt on Widget {
+  Widget buildSlide(Animation<double> anim) {
+    return SlideTransition(
+      position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero).animate(anim),
+      child: this,
+    );
+  }
+}
+
+// -------------------------
+// Invite contacts sheet (DEMO list)
+// -------------------------
+class _InviteContact {
+  final String name;
+  final String phone;
+
+  const _InviteContact(this.name, this.phone);
+}
+
+class _InviteContactsSheet extends StatefulWidget {
+  final String messageBody;
+
+  const _InviteContactsSheet({
+    required this.messageBody,
+  });
+
+  @override
+  State<_InviteContactsSheet> createState() => _InviteContactsSheetState();
+}
+
+class _InviteContactsSheetState extends State<_InviteContactsSheet> {
+  final TextEditingController _search = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
+
+  final List<_InviteContact> _all = const [
+    _InviteContact("Adama Gueye", "+1 (317) 555-0155"),
+    _InviteContact("Aminata Sow", "+1 (317) 555-0134"),
+    _InviteContact("Awa Ndiaye", "+1 (317) 555-0191"),
+    _InviteContact("Binta Cisse", "+1 (317) 555-0122"),
+    _InviteContact("Cheikh Kane", "+1 (317) 555-0129"),
+    _InviteContact("Fatou Diop", "+1 (317) 555-0177"),
+    _InviteContact("Ibrahima Sarr", "+1 (317) 555-0166"),
+    _InviteContact("Khady Seck", "+1 (317) 555-0108"),
+    _InviteContact("Mamadou Fall", "+1 (317) 555-0113"),
+    _InviteContact("Mariama Ba", "+1 (317) 555-0142"),
+    _InviteContact("Moustapha Ndiaye", "+1 (317) 555-0199"),
+    _InviteContact("Ousmane Diallo", "+1 (317) 555-0180"),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _searchFocus.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    _searchFocus.dispose();
+    super.dispose();
+  }
+
+  List<int> _filteredIndicesAlphabetical() {
+    final q = _search.text.trim().toLowerCase();
+
+    final out = <int>[];
+    for (int i = 0; i < _all.length; i++) {
+      final c = _all[i];
+      if (q.isEmpty || c.name.toLowerCase().contains(q) || c.phone.toLowerCase().contains(q)) {
+        out.add(i);
+      }
+    }
+
+    out.sort((ia, ib) => _all[ia].name.toLowerCase().compareTo(_all[ib].name.toLowerCase()));
+    return out;
+  }
+
+  Future<void> _openSms({required String phone, required String body}) async {
+    // TODO: replace with a real deep link (url_launcher) later
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Open SMS to $phone with message:\n$body")),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _filteredIndicesAlphabetical();
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+          child: SizedBox(
+            height: 38,
+            child: TextField(
+              controller: _search,
+              focusNode: _searchFocus,
+              onChanged: (_) => setState(() {}),
+              style: const TextStyle(fontSize: 14),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: "Search contact",
+                hintStyle: const TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
+                prefixIcon: const Icon(Icons.search, size: 18),
+                prefixIconConstraints: const BoxConstraints(minWidth: 40),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Color(0xFFE6E8EF)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Color(0xFFCBD5E1), width: 1.2),
+                ),
+                suffixIcon: _search.text.trim().isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: "Clear",
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                        onPressed: () {
+                          _search.clear();
+                          setState(() {});
+                        },
+                        icon: const Icon(Icons.close, size: 18),
+                      ),
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(6, 0, 6, 12),
+            itemCount: filtered.length,
+            separatorBuilder: (_, __) =>
+                const Divider(height: 1, thickness: 1, color: Color(0xFFE6E8EF), indent: 16),
+            itemBuilder: (ctx, row) {
+              final idx = filtered[row];
+              final c = _all[idx];
+
+              return InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () async {
+                  await _openSms(phone: c.phone, body: widget.messageBody);
+                  if (!mounted) return;
+                  // ✅ after "sending", stay on list (no navigation)
+                  FocusManager.instance.primaryFocus?.unfocus();
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              c.name,
+                              style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 1),
+                            Text(
+                              c.phone,
+                              style: const TextStyle(fontSize: 12.5, color: Color(0xFF6B7280)),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // ✅ removed chevron/arrow per your request
+                      // (no trailing widget)
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// -------------------------
+// Kids privacy (scrollable)
+// -------------------------
+class _PrivacyKidsScrollable extends StatefulWidget {
+  const _PrivacyKidsScrollable();
+
+  @override
+  State<_PrivacyKidsScrollable> createState() => _PrivacyKidsScrollableState();
+}
+
+class _PrivacyKidsScrollableState extends State<_PrivacyKidsScrollable> {
+  final ScrollController _ctrl = ScrollController();
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scrollbar(
+      controller: _ctrl,
+      thumbVisibility: true,
+      child: SingleChildScrollView(
+        controller: _ctrl,
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+        child: const _PrivacyKidsText(),
+      ),
+    );
+  }
+}
+
+class _PrivacyKidsText extends StatelessWidget {
+  const _PrivacyKidsText();
+
+  @override
+  Widget build(BuildContext context) {
+    const h = TextStyle(fontSize: 14, fontWeight: FontWeight.w700);
+    const p = TextStyle(fontSize: 13, height: 1.35, color: Color(0xFF111827));
+    const muted = TextStyle(fontSize: 12.5, height: 1.35, color: Color(0xFF6B7280));
+
+    Widget section(String title, String body) => Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: h),
+              const SizedBox(height: 6),
+              Text(body, style: p),
+            ],
+          ),
+        );
+
+    Widget bullets(String title, List<String> items) => Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: h),
+              const SizedBox(height: 6),
+              ...items.map(
+                (t) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text("•  ", style: p),
+                      Expanded(child: Text(t, style: p)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        section(
+          "How we use your information",
+          "SUTA is made to help your family stay organized. We only use information needed to run the app and improve it.",
+        ),
+        bullets(
+          "What we may collect",
+          [
+            "Basic profile info (like your name).",
+            "App activity (for example: when you create or edit items).",
+            "Device information (to keep the app secure and working well).",
+          ],
+        ),
+        section(
+          "What we do NOT do",
+          "We do not sell your personal information. We do not show ads based on your activity inside SUTA.",
+        ),
+        bullets(
+          "Your choices",
+          [
+            "A parent/guardian can review or change account information.",
+            "You can ask for help if something does not look right.",
+          ],
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          "If you have questions, ask a parent/guardian to contact us.",
+          style: muted,
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------
+// Adults privacy (scrollable)
+// ---------------------------
+class _PrivacyAdultsScrollable extends StatefulWidget {
+  const _PrivacyAdultsScrollable();
+
+  @override
+  State<_PrivacyAdultsScrollable> createState() => _PrivacyAdultsScrollableState();
+}
+
+class _PrivacyAdultsScrollableState extends State<_PrivacyAdultsScrollable> {
+  final ScrollController _ctrl = ScrollController();
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scrollbar(
+      controller: _ctrl,
+      thumbVisibility: true,
+      child: SingleChildScrollView(
+        controller: _ctrl,
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+        child: const _PrivacyAdultsText(),
+      ),
+    );
+  }
+}
+
+class _PrivacyAdultsText extends StatelessWidget {
+  const _PrivacyAdultsText();
+
+  @override
+  Widget build(BuildContext context) {
+    const h = TextStyle(fontSize: 14, fontWeight: FontWeight.w700);
+    const p = TextStyle(fontSize: 13, height: 1.38, color: Color(0xFF111827));
+    const muted = TextStyle(fontSize: 12.5, height: 1.38, color: Color(0xFF6B7280));
+
+    Widget section(String title, String body) => Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: h),
+              const SizedBox(height: 6),
+              Text(body, style: p),
+            ],
+          ),
+        );
+
+    Widget bullets(String title, List<String> items) => Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: h),
+              const SizedBox(height: 6),
+              ...items.map(
+                (t) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text("•  ", style: p),
+                      Expanded(child: Text(t, style: p)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        section(
+          "Privacy notice (adults)",
+          "This notice explains what information SUTA may collect, how it is used, and the choices you have as a parent/guardian or adult user.",
+        ),
+        bullets(
+          "Information we may collect",
+          [
+            "Account information you provide (name, email).",
+            "Content you add in the app (items, notes, status).",
+            "Usage and diagnostics (to improve performance and fix bugs).",
+            "Device information (for security and compatibility).",
+          ],
+        ),
+        section(
+          "How we use information",
+          "We use information to provide and improve SUTA, keep the app secure, personalize basic experiences (like showing your profile), and respond to support requests.",
+        ),
+        section(
+          "Sharing",
+          "We do not sell personal information. We may share limited data with service providers only to operate the app (for example: hosting, analytics, crash reports), under confidentiality obligations.",
+        ),
+        bullets(
+          "Your choices & rights",
+          [
+            "Review or update your account information in Settings.",
+            "Request deletion of your account data (if implemented in your backend later).",
+            "Contact support for questions, issues, or privacy requests.",
+          ],
+        ),
+        const Text(
+          "This is a demo privacy notice. Replace with your real legal/privacy text before release.",
+          style: muted,
         ),
       ],
     );
@@ -867,11 +1463,16 @@ class _SimpleTile extends StatelessWidget {
   final VoidCallback onTap;
   final bool compact;
 
+  final GlobalKey? arrowKey;
+  final Widget? trailingOverride;
+
   const _SimpleTile({
     required this.icon,
     required this.title,
     required this.onTap,
     this.compact = false,
+    this.arrowKey,
+    this.trailingOverride,
   });
 
   @override
@@ -886,7 +1487,10 @@ class _SimpleTile extends StatelessWidget {
             Icon(icon, size: 22),
             const SizedBox(width: 12),
             Expanded(child: Text(title, style: const TextStyle(fontSize: 16))),
-            const Icon(Icons.keyboard_arrow_right, size: 16),
+            SizedBox(
+              key: arrowKey,
+              child: trailingOverride ?? const Icon(Icons.keyboard_arrow_right, size: 16),
+            ),
           ],
         ),
       ),
@@ -1144,9 +1748,9 @@ class _PasswordPopoverState extends State<_PasswordPopover> {
             decoration: widget.popoverDeco(
               "Old password",
               suffix: eye(obscureOld, () => setState(() {
-                obscureOld = !obscureOld;
-                error = null;
-              })),
+                    obscureOld = !obscureOld;
+                    error = null;
+                  })),
             ),
             onChanged: (_) => setState(() => error = null),
           ),
@@ -1158,9 +1762,9 @@ class _PasswordPopoverState extends State<_PasswordPopover> {
             decoration: widget.popoverDeco(
               "New password",
               suffix: eye(obscureNew, () => setState(() {
-                obscureNew = !obscureNew;
-                error = null;
-              })),
+                    obscureNew = !obscureNew;
+                    error = null;
+                  })),
             ),
             onChanged: (_) => setState(() => error = null),
           ),
@@ -1172,9 +1776,9 @@ class _PasswordPopoverState extends State<_PasswordPopover> {
             decoration: widget.popoverDeco(
               "Confirm new password",
               suffix: eye(obscureConfirm, () => setState(() {
-                obscureConfirm = !obscureConfirm;
-                error = null;
-              })),
+                    obscureConfirm = !obscureConfirm;
+                    error = null;
+                  })),
             ),
             onChanged: (_) => setState(() => error = null),
           ),
