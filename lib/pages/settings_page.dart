@@ -4,6 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:suta/models.dart';
 
+// ✅ NEW: real phone contacts + SMS launch
+import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 class SettingsPage extends StatefulWidget {
   final UserProfile profile;
 
@@ -55,7 +59,8 @@ class _SettingsPageState extends State<SettingsPage> {
 
   // ---- layout tuning ----
   static const double _avatarRadius = 18; // small like footer
-  static const double _nameStartIndent = (_avatarRadius * 2) + 12; // avatar diameter + gap
+  static const double _nameStartIndent =
+      (_avatarRadius * 2) + 12; // avatar diameter + gap
   static const double _tileDividerIndent = 40.0;
   static const Color _dividerColor = Color(0xFFE6E8EF);
 
@@ -183,7 +188,10 @@ class _SettingsPageState extends State<SettingsPage> {
                           ],
                         ),
                       ),
-                      const Divider(height: 1, thickness: 1, color: Color(0xFFE6E8EF)),
+                      const Divider(
+                          height: 1,
+                          thickness: 1,
+                          color: Color(0xFFE6E8EF)),
                       Expanded(child: body),
                     ],
                   ),
@@ -207,20 +215,17 @@ class _SettingsPageState extends State<SettingsPage> {
     final double topOffset = mq.padding.top + headerHeight + dividerThickness;
 
     // draft starts from current people, but no changes applied until Save
-    List<Person> draft = widget.people.map(_clonePersonDeep).toList(growable: true);
+    List<Person> draft =
+        widget.people.map(_clonePersonDeep).toList(growable: true);
 
     // dirty flag controls outside-tap close + Save/Cancel enabled
     bool dirty = false;
 
-    void setDirty(bool v) {
-      // inside dialog only
-      dirty = v;
-    }
-
     await showGeneralDialog<void>(
       context: context,
       barrierLabel: "manage-person",
-      barrierDismissible: false, // ✅ we handle outside tap ourselves (only when not dirty)
+      barrierDismissible:
+          false, // ✅ handle outside tap ourselves (only when not dirty)
       barrierColor: Colors.black.withOpacity(0.10),
       transitionDuration: const Duration(milliseconds: 220),
       pageBuilder: (ctx, a1, a2) {
@@ -271,7 +276,8 @@ class _SettingsPageState extends State<SettingsPage> {
                           child: Column(
                             children: [
                               Padding(
-                                padding: const EdgeInsets.fromLTRB(10, 14, 12, 10),
+                                padding:
+                                    const EdgeInsets.fromLTRB(10, 14, 12, 10),
                                 child: Row(
                                   children: [
                                     IconButton(
@@ -295,7 +301,10 @@ class _SettingsPageState extends State<SettingsPage> {
                                   ],
                                 ),
                               ),
-                              const Divider(height: 1, thickness: 1, color: Color(0xFFE6E8EF)),
+                              const Divider(
+                                  height: 1,
+                                  thickness: 1,
+                                  color: Color(0xFFE6E8EF)),
 
                               Expanded(
                                 child: _ManagePeopleSheetBody(
@@ -305,7 +314,6 @@ class _SettingsPageState extends State<SettingsPage> {
                                   onDraftChanged: (next) {
                                     setStateDlg(() {
                                       draft = next;
-                                      setDirty(true);
                                       dirty = true;
                                     });
                                   },
@@ -314,7 +322,8 @@ class _SettingsPageState extends State<SettingsPage> {
 
                               // ✅ bottom-right buttons
                               Container(
-                                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                                padding:
+                                    const EdgeInsets.fromLTRB(12, 10, 12, 12),
                                 alignment: Alignment.centerRight,
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.end,
@@ -390,8 +399,8 @@ class _SettingsPageState extends State<SettingsPage> {
         return AnimatedBuilder(
           animation: widget.profile,
           builder: (context, _) {
-            final hasAvatar =
-                widget.profile.avatarFile != null || widget.profile.avatarIcon != null;
+            final hasAvatar = widget.profile.avatarFile != null ||
+                widget.profile.avatarIcon != null;
 
             return Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
@@ -577,7 +586,8 @@ class _SettingsPageState extends State<SettingsPage> {
     required GlobalKey anchorKey,
     double? desiredWidth,
     bool alignRightToAnchor = false,
-    required Widget Function(VoidCallback close, BoxConstraints popConstraints) builder,
+    required Widget Function(VoidCallback close, BoxConstraints popConstraints)
+        builder,
   }) async {
     if (_popoverOpen) return null;
     _popoverOpen = true;
@@ -607,14 +617,16 @@ class _SettingsPageState extends State<SettingsPage> {
 
                   final double effectiveH = screenH - viewInsets.bottom;
 
-                  final overlayBox = Overlay.of(ctx).context.findRenderObject() as RenderBox;
+                  final overlayBox =
+                      Overlay.of(ctx).context.findRenderObject() as RenderBox;
 
                   final anchorCtx = anchorKey.currentContext;
                   if (anchorCtx == null) return const SizedBox.shrink();
 
                   final anchorBox = anchorCtx.findRenderObject() as RenderBox;
 
-                  final anchorTopLeft = anchorBox.localToGlobal(Offset.zero, ancestor: overlayBox);
+                  final anchorTopLeft =
+                      anchorBox.localToGlobal(Offset.zero, ancestor: overlayBox);
                   final anchorBottomLeft = anchorBox.localToGlobal(
                     Offset(0, anchorBox.size.height),
                     ancestor: overlayBox,
@@ -631,30 +643,37 @@ class _SettingsPageState extends State<SettingsPage> {
                   final double popoverWidth =
                       (target).clamp(160.0, screenW - (margin * 2)).toDouble();
 
-                  double left =
-                      alignRightToAnchor ? (anchorBottomRight.dx - popoverWidth) : anchorBottomLeft.dx;
+                  double left = alignRightToAnchor
+                      ? (anchorBottomRight.dx - popoverWidth)
+                      : anchorBottomLeft.dx;
 
                   if (left + popoverWidth > screenW - margin) {
-                    left = (screenW - popoverWidth - margin).clamp(margin, screenW);
+                    left = (screenW - popoverWidth - margin)
+                        .clamp(margin, screenW);
                   }
                   if (left < margin) left = margin;
 
                   final double topBelow = anchorBottomLeft.dy + gap;
-                  final double availableBelow = (effectiveH - margin) - topBelow;
-                  final double availableAbove = (anchorTopLeft.dy - margin) - gap;
+                  final double availableBelow =
+                      (effectiveH - margin) - topBelow;
+                  final double availableAbove =
+                      (anchorTopLeft.dy - margin) - gap;
 
-                  final bool placeAbove = availableBelow < 140 && availableAbove > availableBelow;
+                  final bool placeAbove =
+                      availableBelow < 140 && availableAbove > availableBelow;
 
-                  final double maxHeight = (placeAbove ? availableAbove : availableBelow)
-                      .clamp(90.0, effectiveH - (margin * 2))
-                      .toDouble();
+                  final double maxHeight =
+                      (placeAbove ? availableAbove : availableBelow)
+                          .clamp(90.0, effectiveH - (margin * 2))
+                          .toDouble();
 
                   final popConstraints = BoxConstraints(
                     maxWidth: popoverWidth,
                     maxHeight: maxHeight,
                   );
 
-                  double top = placeAbove ? (anchorTopLeft.dy - gap - maxHeight) : topBelow;
+                  double top =
+                      placeAbove ? (anchorTopLeft.dy - gap - maxHeight) : topBelow;
                   top = top.clamp(margin + safePad.top, effectiveH - margin);
 
                   return AnimatedPadding(
@@ -759,8 +778,10 @@ class _SettingsPageState extends State<SettingsPage> {
   void _toggleHelpInline() => setState(() => _helpInlineOpen = !_helpInlineOpen);
 
   Widget _helpInlinePanel() {
-    const base = TextStyle(fontSize: 16, height: 1.25, color: Color(0xFF111827));
-    const email = TextStyle(fontSize: 16, height: 1.25, color: Color(0xFF2563EB));
+    const base =
+        TextStyle(fontSize: 16, height: 1.25, color: Color(0xFF111827));
+    const email =
+        TextStyle(fontSize: 16, height: 1.25, color: Color(0xFF2563EB));
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(_tileDividerIndent, 8, 12, 10),
@@ -771,7 +792,9 @@ class _SettingsPageState extends State<SettingsPage> {
         text: const TextSpan(
           style: base,
           children: [
-            TextSpan(text: "You can request support or leave feedback by sending an email to: "),
+            TextSpan(
+                text:
+                    "You can request support or leave feedback by sending an email to: "),
             TextSpan(text: "support@suta.com", style: email),
           ],
         ),
@@ -784,8 +807,10 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget _infoInlinePanel() {
     const String osValue = "Android";
 
-    const titleStyle = TextStyle(fontSize: 13.5, height: 1.2, color: Color(0xFF6B7280));
-    const infoStyle = TextStyle(fontSize: 13.5, height: 1.2, color: Color(0xFF111827));
+    const titleStyle =
+        TextStyle(fontSize: 13.5, height: 1.2, color: Color(0xFF6B7280));
+    const infoStyle =
+        TextStyle(fontSize: 13.5, height: 1.2, color: Color(0xFF111827));
 
     Widget row(String title, String info) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 3),
@@ -829,12 +854,16 @@ class _SettingsPageState extends State<SettingsPage> {
       builder: (context, _) {
         Widget avatarChild() {
           if (widget.profile.avatarFile != null) return const SizedBox.shrink();
-          if (widget.profile.avatarIcon != null) return Icon(widget.profile.avatarIcon, size: 18);
+          if (widget.profile.avatarIcon != null) {
+            return Icon(widget.profile.avatarIcon, size: 18);
+          }
           return const Icon(Icons.person, size: 18);
         }
 
         ImageProvider? avatarBgImage() {
-          if (widget.profile.avatarFile != null) return FileImage(widget.profile.avatarFile!);
+          if (widget.profile.avatarFile != null) {
+            return FileImage(widget.profile.avatarFile!);
+          }
           return null;
         }
 
@@ -862,15 +891,17 @@ class _SettingsPageState extends State<SettingsPage> {
                           builder: (context, c) {
                             const double iconAreaEdit = (4 + 18 + 4) * 2 + 4;
                             const double iconAreaView = (4 + 16 + 4);
-                            final double reserved = _isEditingName ? iconAreaEdit : iconAreaView;
+                            final double reserved =
+                                _isEditingName ? iconAreaEdit : iconAreaView;
                             final double maxFieldWidth =
                                 (c.maxWidth - reserved).clamp(80.0, c.maxWidth);
 
                             return AnimatedBuilder(
                               animation: _nameController,
                               builder: (context, _) {
-                                final String current =
-                                    _isEditingName ? _nameController.text : _capitalizeFirst(widget.profile.fullName);
+                                final String current = _isEditingName
+                                    ? _nameController.text
+                                    : _capitalizeFirst(widget.profile.fullName);
 
                                 final double fieldWidth = _measureTextWidth(
                                   text: current,
@@ -890,7 +921,8 @@ class _SettingsPageState extends State<SettingsPage> {
                                               controller: _nameController,
                                               focusNode: _nameFocus,
                                               autofocus: true,
-                                              textCapitalization: TextCapitalization.words,
+                                              textCapitalization:
+                                                  TextCapitalization.words,
                                               style: nameStyle,
                                               maxLines: 1,
                                               decoration: const InputDecoration(
@@ -917,7 +949,8 @@ class _SettingsPageState extends State<SettingsPage> {
                                         borderRadius: BorderRadius.circular(10),
                                         child: const Padding(
                                           padding: EdgeInsets.all(4),
-                                          child: Icon(Icons.edit_outlined, size: 16),
+                                          child: Icon(Icons.edit_outlined,
+                                              size: 16),
                                         ),
                                       )
                                     else ...[
@@ -929,7 +962,9 @@ class _SettingsPageState extends State<SettingsPage> {
                                           child: Icon(
                                             Icons.check,
                                             size: 18,
-                                            color: _canSaveName ? null : const Color(0xFF9CA3AF),
+                                            color: _canSaveName
+                                                ? null
+                                                : const Color(0xFF9CA3AF),
                                           ),
                                         ),
                                       ),
@@ -960,7 +995,8 @@ class _SettingsPageState extends State<SettingsPage> {
                         padding: EdgeInsets.only(left: (_avatarRadius * 2) + 12),
                         child: Text(
                           "Name cannot be blank.",
-                          style: TextStyle(color: Color(0xFFEF4444), fontSize: 12),
+                          style: TextStyle(
+                              color: Color(0xFFEF4444), fontSize: 12),
                         ),
                       ),
                     ),
@@ -990,7 +1026,6 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const SizedBox(height: 12),
 
-            // ✅ NEW compact block exactly like Invite a friend measurements
             _Card(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               child: Column(
@@ -1014,11 +1049,16 @@ class _SettingsPageState extends State<SettingsPage> {
                     title: "Background",
                     onTap: () {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Background settings (next step)")),
+                        const SnackBar(
+                            content: Text("Background settings (next step)")),
                       );
                     },
                   ),
-                  const Divider(height: 1, thickness: 1, color: _dividerColor, indent: _tileDividerIndent),
+                  const Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: _dividerColor,
+                      indent: _tileDividerIndent),
                   _SimpleTile(
                     icon: Icons.color_lens_outlined,
                     title: "Theme color",
@@ -1041,7 +1081,11 @@ class _SettingsPageState extends State<SettingsPage> {
                     title: "Privacy notice for kids",
                     onTap: _openPrivacyKidsSheet,
                   ),
-                  const Divider(height: 1, thickness: 1, color: _dividerColor, indent: _tileDividerIndent),
+                  const Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: _dividerColor,
+                      indent: _tileDividerIndent),
                   _SimpleTile(
                     icon: Icons.shield_outlined,
                     title: "Privacy notice for adults",
@@ -1068,10 +1112,18 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ),
                   if (_helpInlineOpen) ...[
-                    const Divider(height: 1, thickness: 1, color: _dividerColor, indent: _tileDividerIndent),
+                    const Divider(
+                        height: 1,
+                        thickness: 1,
+                        color: _dividerColor,
+                        indent: _tileDividerIndent),
                     _helpInlinePanel(),
                   ],
-                  const Divider(height: 1, thickness: 1, color: _dividerColor, indent: _tileDividerIndent),
+                  const Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: _dividerColor,
+                      indent: _tileDividerIndent),
                   _SimpleTile(
                     icon: Icons.info_outline,
                     title: "Infos & licenses",
@@ -1085,7 +1137,11 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ),
                   if (_infoInlineOpen) ...[
-                    const Divider(height: 1, thickness: 1, color: _dividerColor, indent: _tileDividerIndent),
+                    const Divider(
+                        height: 1,
+                        thickness: 1,
+                        color: _dividerColor,
+                        indent: _tileDividerIndent),
                     _infoInlinePanel(),
                   ],
                 ],
@@ -1117,7 +1173,8 @@ class _SettingsPageState extends State<SettingsPage> {
 extension _SlideExt on Widget {
   Widget buildSlide(Animation<double> anim) {
     return SlideTransition(
-      position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero).animate(anim),
+      position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+          .animate(anim),
       child: this,
     );
   }
@@ -1178,7 +1235,8 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
   }
 
   TextEditingController _ctrlFor(Person p) {
-    return _nameCtrls.putIfAbsent(p.id, () => TextEditingController(text: p.name));
+    return _nameCtrls.putIfAbsent(
+        p.id, () => TextEditingController(text: p.name));
   }
 
   FocusNode _focusFor(Person p) {
@@ -1196,7 +1254,8 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _focusFor(p).requestFocus();
-      c.selection = TextSelection.fromPosition(TextPosition(offset: c.text.length));
+      c.selection =
+          TextSelection.fromPosition(TextPosition(offset: c.text.length));
     });
   }
 
@@ -1218,10 +1277,6 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
 
     widget.onChanged();
   }
-
-  // ----------------------
-  // Avatar editing (per person) popover
-  // ----------------------
 
   Future<void> _pickFromCamera(Person p) async {
     try {
@@ -1320,27 +1375,31 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
 
                   double left = anchorBottomLeft.dx;
                   if (left + popoverWidth > screenW - margin) {
-                    left = (screenW - popoverWidth - margin).clamp(margin, screenW);
+                    left = (screenW - popoverWidth - margin)
+                        .clamp(margin, screenW);
                   }
                   if (left < margin) left = margin;
 
                   final double topBelow = anchorBottomLeft.dy + gap;
-                  final double availableBelow = (effectiveH - margin) - topBelow;
-                  final double availableAbove = (anchorTopLeft.dy - margin) - gap;
+                  final double availableBelow =
+                      (effectiveH - margin) - topBelow;
+                  final double availableAbove =
+                      (anchorTopLeft.dy - margin) - gap;
 
                   final bool placeAbove =
                       availableBelow < 140 && availableAbove > availableBelow;
 
-                  final double maxHeight = (placeAbove ? availableAbove : availableBelow)
-                      .clamp(120.0, effectiveH - (margin * 2))
-                      .toDouble();
+                  final double maxHeight =
+                      (placeAbove ? availableAbove : availableBelow)
+                          .clamp(120.0, effectiveH - (margin * 2))
+                          .toDouble();
 
-                  double top = placeAbove
-                      ? (anchorTopLeft.dy - gap - maxHeight)
-                      : topBelow;
+                  double top =
+                      placeAbove ? (anchorTopLeft.dy - gap - maxHeight) : topBelow;
                   top = top.clamp(margin + safePad.top, effectiveH - margin);
 
-                  final hasAvatar = person.avatarFile != null || person.avatarIcon != null;
+                  final hasAvatar =
+                      person.avatarFile != null || person.avatarIcon != null;
 
                   return AnimatedPadding(
                     duration: const Duration(milliseconds: 160),
@@ -1366,7 +1425,8 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
                                 child: SingleChildScrollView(
                                   padding: EdgeInsets.zero,
                                   child: Padding(
-                                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                                    padding: const EdgeInsets.fromLTRB(
+                                        12, 10, 12, 10),
                                     child: Column(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
@@ -1393,9 +1453,12 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
                                           label: "Choose an avatar",
                                           onTap: () async {
                                             close();
-                                            await Future.delayed(const Duration(milliseconds: 10));
+                                            await Future.delayed(
+                                                const Duration(milliseconds: 10));
                                             if (!mounted) return;
-                                            await _showAvatarGridPopover(anchorKey: anchorKey, person: person);
+                                            await _showAvatarGridPopover(
+                                                anchorKey: anchorKey,
+                                                person: person);
                                           },
                                         ),
                                         if (hasAvatar) ...[
@@ -1498,24 +1561,27 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
 
                   double left = anchorBottomLeft.dx;
                   if (left + popoverWidth > screenW - margin) {
-                    left = (screenW - popoverWidth - margin).clamp(margin, screenW);
+                    left = (screenW - popoverWidth - margin)
+                        .clamp(margin, screenW);
                   }
                   if (left < margin) left = margin;
 
                   final double topBelow = anchorBottomLeft.dy + gap;
-                  final double availableBelow = (effectiveH - margin) - topBelow;
-                  final double availableAbove = (anchorTopLeft.dy - margin) - gap;
+                  final double availableBelow =
+                      (effectiveH - margin) - topBelow;
+                  final double availableAbove =
+                      (anchorTopLeft.dy - margin) - gap;
 
                   final bool placeAbove =
                       availableBelow < 180 && availableAbove > availableBelow;
 
-                  final double maxHeight = (placeAbove ? availableAbove : availableBelow)
-                      .clamp(160.0, effectiveH - (margin * 2))
-                      .toDouble();
+                  final double maxHeight =
+                      (placeAbove ? availableAbove : availableBelow)
+                          .clamp(160.0, effectiveH - (margin * 2))
+                          .toDouble();
 
-                  double top = placeAbove
-                      ? (anchorTopLeft.dy - gap - maxHeight)
-                      : topBelow;
+                  double top =
+                      placeAbove ? (anchorTopLeft.dy - gap - maxHeight) : topBelow;
                   top = top.clamp(margin + safePad.top, effectiveH - margin);
 
                   return AnimatedPadding(
@@ -1542,7 +1608,8 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
                                 child: SingleChildScrollView(
                                   padding: EdgeInsets.zero,
                                   child: Padding(
-                                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                                    padding: const EdgeInsets.fromLTRB(
+                                        12, 10, 12, 10),
                                     child: Column(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
@@ -1550,22 +1617,28 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
                                           alignment: Alignment.centerLeft,
                                           child: Text(
                                             "Choose an avatar",
-                                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                                            style: TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w600),
                                           ),
                                         ),
                                         const SizedBox(height: 10),
                                         GridView.builder(
                                           shrinkWrap: true,
-                                          itemCount: widget.availableAvatars.length,
-                                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                          itemCount:
+                                              widget.availableAvatars.length,
+                                          gridDelegate:
+                                              const SliverGridDelegateWithFixedCrossAxisCount(
                                             crossAxisCount: 4,
                                             mainAxisSpacing: 10,
                                             crossAxisSpacing: 10,
                                           ),
                                           itemBuilder: (ctx2, i) {
-                                            final icon = widget.availableAvatars[i];
+                                            final icon =
+                                                widget.availableAvatars[i];
                                             return InkWell(
-                                              borderRadius: BorderRadius.circular(14),
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
                                               onTap: () {
                                                 setState(() {
                                                   person.avatarIcon = icon;
@@ -1576,10 +1649,13 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
                                               },
                                               child: Container(
                                                 decoration: BoxDecoration(
-                                                  color: const Color(0xFFF3F4F6),
-                                                  borderRadius: BorderRadius.circular(14),
+                                                  color:
+                                                      const Color(0xFFF3F4F6),
+                                                  borderRadius:
+                                                      BorderRadius.circular(14),
                                                 ),
-                                                child: Center(child: Icon(icon, size: 26)),
+                                                child: Center(
+                                                    child: Icon(icon, size: 26)),
                                               ),
                                             );
                                           },
@@ -1587,7 +1663,9 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
                                         const SizedBox(height: 10),
                                         Align(
                                           alignment: Alignment.centerRight,
-                                          child: TextButton(onPressed: close, child: const Text("Cancel")),
+                                          child: TextButton(
+                                              onPressed: close,
+                                              child: const Text("Cancel")),
                                         ),
                                       ],
                                     ),
@@ -1621,10 +1699,6 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
     }
   }
 
-  // ----------------------
-  // Delete confirm (anchored popover like Notifications)
-  // ----------------------
-
   void _hideConfirm() {
     _confirmEntry?.remove();
     _confirmEntry = null;
@@ -1634,7 +1708,6 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
   void _showConfirmFor(Person p) {
     final link = _deleteLinkFor(p);
 
-    // toggle behavior
     if (_confirmEntry != null && _activeConfirmLink == link) {
       _hideConfirm();
       return;
@@ -1689,11 +1762,15 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
                                 TextButton(
                                   onPressed: _hideConfirm,
                                   style: TextButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 4),
                                     minimumSize: Size.zero,
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                    visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
-                                    textStyle: const TextStyle(fontSize: 13, height: 1.0),
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: const VisualDensity(
+                                        horizontal: -2, vertical: -2),
+                                    textStyle: const TextStyle(
+                                        fontSize: 13, height: 1.0),
                                   ),
                                   child: const Text("No"),
                                 ),
@@ -1701,16 +1778,21 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
                                 FilledButton(
                                   onPressed: () {
                                     _hideConfirm();
-                                    final next = [...widget.draftPeople]..removeWhere((x) => x.id == p.id);
+                                    final next = [...widget.draftPeople]
+                                      ..removeWhere((x) => x.id == p.id);
                                     widget.onDraftChanged(next);
                                     widget.onChanged();
                                   },
                                   style: FilledButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 4),
                                     minimumSize: Size.zero,
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                    visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
-                                    textStyle: const TextStyle(fontSize: 13, height: 1.0),
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: const VisualDensity(
+                                        horizontal: -2, vertical: -2),
+                                    textStyle: const TextStyle(
+                                        fontSize: 13, height: 1.0),
                                   ),
                                   child: const Text("Yes"),
                                 ),
@@ -1732,10 +1814,6 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
     overlay.insert(_confirmEntry!);
   }
 
-  // ----------------------
-  // UI helpers
-  // ----------------------
-
   Widget _miniAvatar(Person p) {
     ImageProvider? bg;
     if (p.avatarFile != null) bg = FileImage(p.avatarFile!);
@@ -1748,7 +1826,8 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
     } else {
       child = Text(
         _initials(p.name),
-        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800),
+        style: const TextStyle(
+            color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800),
       );
     }
 
@@ -1769,20 +1848,21 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
     if (widget.draftPeople.isEmpty) {
       return const Padding(
         padding: EdgeInsets.all(16),
-        child: Text("No people yet.", style: TextStyle(color: Color(0xFF9CA3AF))),
+        child: Text("No people yet.",
+            style: TextStyle(color: Color(0xFF9CA3AF))),
       );
     }
 
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
       itemCount: widget.draftPeople.length,
-      separatorBuilder: (_, __) => const Divider(height: 14, thickness: 1, color: Color(0xFFE6E8EF)),
+      separatorBuilder: (_, __) =>
+          const Divider(height: 14, thickness: 1, color: Color(0xFFE6E8EF)),
       itemBuilder: (ctx, i) {
         final p = widget.draftPeople[i];
         final isEditing = _editingId == p.id;
         final ctrl = _ctrlFor(p);
 
-        // avatar anchor for popover
         final avatarKey = GlobalKey();
 
         return Row(
@@ -1790,12 +1870,14 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
           children: [
             InkWell(
               key: avatarKey,
-              onTap: () => _showAvatarActionsPopover(anchorKey: avatarKey, person: p),
+              onTap: () => _showAvatarActionsPopover(
+                anchorKey: avatarKey,
+                person: p,
+              ),
               borderRadius: BorderRadius.circular(999),
               child: _miniAvatar(p),
             ),
             const SizedBox(width: 12),
-
             Expanded(
               child: Row(
                 children: [
@@ -1824,7 +1906,6 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
                           ),
                   ),
                   const SizedBox(width: 8),
-
                   if (!isEditing) ...[
                     InkWell(
                       onTap: () => _startEdit(p),
@@ -1853,10 +1934,8 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
                       ),
                     ),
                   ],
-
                   const SizedBox(width: 8),
 
-                  // ✅ delete icon = red circle with white minus + anchored confirm under it
                   CompositedTransformTarget(
                     link: _deleteLinkFor(p),
                     child: InkWell(
@@ -1891,7 +1970,6 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
   }
 }
 
-// Deep clone so edits are draft-only until Save
 Person _clonePersonDeep(Person p) {
   return Person(
     id: p.id,
@@ -1914,14 +1992,19 @@ Person _clonePersonDeep(Person p) {
 }
 
 // =======================================================
-// EXISTING INVITE SHEET (DEMO list)
+// ✅ INVITE SHEET (REAL PHONE CONTACTS)
 // =======================================================
 
 class _InviteContact {
+  final String id;
   final String name;
   final String phone;
 
-  const _InviteContact(this.name, this.phone);
+  const _InviteContact({
+    required this.id,
+    required this.name,
+    required this.phone,
+  });
 }
 
 class _InviteContactsSheet extends StatefulWidget {
@@ -1939,27 +2022,18 @@ class _InviteContactsSheetState extends State<_InviteContactsSheet> {
   final TextEditingController _search = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
 
-  final List<_InviteContact> _all = const [
-    _InviteContact("Adama Gueye", "+1 (317) 555-0155"),
-    _InviteContact("Aminata Sow", "+1 (317) 555-0134"),
-    _InviteContact("Awa Ndiaye", "+1 (317) 555-0191"),
-    _InviteContact("Binta Cisse", "+1 (317) 555-0122"),
-    _InviteContact("Cheikh Kane", "+1 (317) 555-0129"),
-    _InviteContact("Fatou Diop", "+1 (317) 555-0177"),
-    _InviteContact("Ibrahima Sarr", "+1 (317) 555-0166"),
-    _InviteContact("Khady Seck", "+1 (317) 555-0108"),
-    _InviteContact("Mamadou Fall", "+1 (317) 555-0113"),
-    _InviteContact("Mariama Ba", "+1 (317) 555-0142"),
-    _InviteContact("Moustapha Ndiaye", "+1 (317) 555-0199"),
-    _InviteContact("Ousmane Diallo", "+1 (317) 555-0180"),
-  ];
+  bool _loading = true;
+  bool _permissionDenied = false;
+
+  List<_InviteContact> _all = const [];
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       _searchFocus.requestFocus();
+      await _loadContacts();
     });
   }
 
@@ -1970,31 +2044,142 @@ class _InviteContactsSheetState extends State<_InviteContactsSheet> {
     super.dispose();
   }
 
+  Future<void> _loadContacts() async {
+    setState(() {
+      _loading = true;
+      _permissionDenied = false;
+    });
+
+    try {
+      final ok = await FlutterContacts.requestPermission(readonly: true);
+      if (!ok) {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _permissionDenied = true;
+          _all = const [];
+        });
+        return;
+      }
+
+      final contacts = await FlutterContacts.getContacts(
+        withProperties: true, // ✅ phones included
+        withThumbnail: false,
+      );
+
+      final out = <_InviteContact>[];
+
+      for (final c in contacts) {
+        final displayName = (c.displayName).trim();
+        if (displayName.isEmpty) continue;
+
+        // choose first phone that looks usable
+        String? phone;
+        for (final p in c.phones) {
+          final v = p.number.trim();
+          if (v.isNotEmpty) {
+            phone = v;
+            break;
+          }
+        }
+        if (phone == null) continue;
+
+        out.add(_InviteContact(
+          id: c.id,
+          name: displayName,
+          phone: phone,
+        ));
+      }
+
+      out.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _permissionDenied = false;
+        _all = out;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _permissionDenied = false;
+        _all = const [];
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Could not load contacts.")),
+      );
+    }
+  }
+
   List<int> _filteredIndicesAlphabetical() {
     final q = _search.text.trim().toLowerCase();
-
     final out = <int>[];
+
     for (int i = 0; i < _all.length; i++) {
       final c = _all[i];
-      if (q.isEmpty || c.name.toLowerCase().contains(q) || c.phone.toLowerCase().contains(q)) {
+      if (q.isEmpty ||
+          c.name.toLowerCase().contains(q) ||
+          c.phone.toLowerCase().contains(q)) {
         out.add(i);
       }
     }
 
-    out.sort((ia, ib) => _all[ia].name.toLowerCase().compareTo(_all[ib].name.toLowerCase()));
+    out.sort((ia, ib) =>
+        _all[ia].name.toLowerCase().compareTo(_all[ib].name.toLowerCase()));
     return out;
   }
 
   Future<void> _openSms({required String phone, required String body}) async {
-    // TODO: replace with a real deep link (url_launcher) later
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Open SMS to $phone with message:\n$body")),
+    // ✅ Works on Android & iOS (url_launcher handles platform)
+    final uri = Uri(
+      scheme: 'sms',
+      path: phone,
+      queryParameters: <String, String>{
+        'body': body,
+      },
     );
+
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Could not open SMS app.")),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (_permissionDenied) {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            const Text(
+              "Contacts permission is required to show your phone contacts.",
+              style: TextStyle(color: Color(0xFF111827), fontSize: 14),
+            ),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: _loadContacts,
+              child: const Text("Allow contacts"),
+            ),
+          ],
+        ),
+      );
+    }
+
     final filtered = _filteredIndicesAlphabetical();
 
     return Column(
@@ -2011,25 +2196,30 @@ class _InviteContactsSheetState extends State<_InviteContactsSheet> {
               decoration: InputDecoration(
                 isDense: true,
                 hintText: "Search contact",
-                hintStyle: const TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
+                hintStyle:
+                    const TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
                 prefixIcon: const Icon(Icons.search, size: 18),
                 prefixIconConstraints: const BoxConstraints(minWidth: 40),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
                   borderSide: const BorderSide(color: Color(0xFFE6E8EF)),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: Color(0xFFCBD5E1), width: 1.2),
+                  borderSide:
+                      const BorderSide(color: Color(0xFFCBD5E1), width: 1.2),
                 ),
                 suffixIcon: _search.text.trim().isEmpty
                     ? null
                     : IconButton(
                         tooltip: "Clear",
                         padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                        constraints:
+                            const BoxConstraints(minWidth: 36, minHeight: 36),
                         onPressed: () {
                           _search.clear();
                           setState(() {});
@@ -2041,53 +2231,69 @@ class _InviteContactsSheetState extends State<_InviteContactsSheet> {
           ),
         ),
         Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(6, 0, 6, 12),
-            itemCount: filtered.length,
-            separatorBuilder: (_, __) =>
-                const Divider(height: 1, thickness: 1, color: Color(0xFFE6E8EF), indent: 16),
-            itemBuilder: (ctx, row) {
-              final idx = filtered[row];
-              final c = _all[idx];
+          child: filtered.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text(
+                    "No contacts found.",
+                    style: TextStyle(color: Color(0xFF9CA3AF)),
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(6, 0, 6, 12),
+                  itemCount: filtered.length,
+                  separatorBuilder: (_, __) => const Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: Color(0xFFE6E8EF),
+                      indent: 16),
+                  itemBuilder: (ctx, row) {
+                    final idx = filtered[row];
+                    final c = _all[idx];
 
-              return InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: () async {
-                  await _openSms(phone: c.phone, body: widget.messageBody);
-                  if (!mounted) return;
-                  FocusManager.instance.primaryFocus?.unfocus();
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () async {
+                        await _openSms(phone: c.phone, body: widget.messageBody);
+                        if (!mounted) return;
+                        FocusManager.instance.primaryFocus?.unfocus();
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        child: Row(
                           children: [
-                            Text(
-                              c.name,
-                              style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 1),
-                            Text(
-                              c.phone,
-                              style: const TextStyle(fontSize: 12.5, color: Color(0xFF6B7280)),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    c.name,
+                                    style: const TextStyle(
+                                        fontSize: 14.5,
+                                        fontWeight: FontWeight.w600),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 1),
+                                  Text(
+                                    c.phone,
+                                    style: const TextStyle(
+                                        fontSize: 12.5,
+                                        color: Color(0xFF6B7280)),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
         ),
       ],
     );
@@ -2134,7 +2340,8 @@ class _PrivacyKidsText extends StatelessWidget {
   Widget build(BuildContext context) {
     const h = TextStyle(fontSize: 14, fontWeight: FontWeight.w700);
     const p = TextStyle(fontSize: 13, height: 1.35, color: Color(0xFF111827));
-    const muted = TextStyle(fontSize: 12.5, height: 1.35, color: Color(0xFF6B7280));
+    const muted =
+        TextStyle(fontSize: 12.5, height: 1.35, color: Color(0xFF6B7280));
 
     Widget section(String title, String body) => Padding(
           padding: const EdgeInsets.only(bottom: 14),
@@ -2247,7 +2454,8 @@ class _PrivacyAdultsText extends StatelessWidget {
   Widget build(BuildContext context) {
     const h = TextStyle(fontSize: 14, fontWeight: FontWeight.w700);
     const p = TextStyle(fontSize: 13, height: 1.38, color: Color(0xFF111827));
-    const muted = TextStyle(fontSize: 12.5, height: 1.38, color: Color(0xFF6B7280));
+    const muted =
+        TextStyle(fontSize: 12.5, height: 1.38, color: Color(0xFF6B7280));
 
     Widget section(String title, String body) => Padding(
           padding: const EdgeInsets.only(bottom: 14),
@@ -2342,7 +2550,8 @@ class _Card extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         boxShadow: const [
-          BoxShadow(blurRadius: 18, offset: Offset(0, 8), color: Color(0x11000000)),
+          BoxShadow(
+              blurRadius: 18, offset: Offset(0, 8), color: Color(0x11000000)),
         ],
       ),
       child: child,
@@ -2433,7 +2642,8 @@ class _SimpleTile extends StatelessWidget {
             Expanded(child: Text(title, style: const TextStyle(fontSize: 16))),
             SizedBox(
               key: arrowKey,
-              child: trailingOverride ?? const Icon(Icons.keyboard_arrow_right, size: 16),
+              child: trailingOverride ??
+                  const Icon(Icons.keyboard_arrow_right, size: 16),
             ),
           ],
         ),
@@ -2674,7 +2884,9 @@ class _PasswordPopoverState extends State<_PasswordPopover> {
   Widget eye(bool obscure, VoidCallback toggle) {
     return IconButton(
       onPressed: toggle,
-      icon: Icon(obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+      icon: Icon(obscure
+          ? Icons.visibility_off_outlined
+          : Icons.visibility_outlined),
     );
   }
 
@@ -2751,7 +2963,6 @@ class _PasswordPopoverState extends State<_PasswordPopover> {
   }
 }
 
-// Helper: Title Case (Fatou Ndoye)
 String _capitalizeFirst(String s) {
   final trimmed = s.trim();
   if (trimmed.isEmpty) return trimmed;
@@ -2766,8 +2977,11 @@ String _capitalizeFirst(String s) {
 }
 
 String _initials(String name) {
-  final parts =
-      name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  final parts = name
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((p) => p.isNotEmpty)
+      .toList();
   if (parts.isEmpty) return "?";
   if (parts.length == 1) return parts.first.characters.first.toUpperCase();
   return (parts.first.characters.first + parts.last.characters.first)

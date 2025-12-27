@@ -24,6 +24,23 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+
+	<!-- ✅ Required for image_picker camera -->
+	<key>NSCameraUsageDescription</key>
+	<string>SUTA needs camera access to take a profile or person picture.</string>
+
+	<!-- ✅ Required for image_picker gallery (Photos) -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>SUTA needs photo library access to choose a profile or person picture.</string>
+
+	<!-- ✅ (Optional but recommended) if you ever save images back to Photos -->
+	<!-- <key>NSPhotoLibraryAddUsageDescription</key>
+	<string>SUTA needs permission to save pictures to your photo library.</string> -->
+
+	<!-- ✅ Required if you will read phone contacts for Invite a friend -->
+	<key>NSContactsUsageDescription</key>
+	<string>SUTA needs access to your contacts to let you select a friend to invite.</string>
+
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
