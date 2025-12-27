@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:suta/models.dart';
 
@@ -90,7 +89,7 @@ class AppHeader extends StatelessWidget {
                   builder: (context, _) {
                     ImageProvider? bg;
                     if (profile.avatarFile != null) {
-                      bg = FileImage(profile.avatarFile as File);
+                      bg = FileImage(profile.avatarFile!);
                     }
 
                     final Widget child;
@@ -325,25 +324,41 @@ class _MiniAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = _colorFor(person.id);
+    // ✅ Prefer custom avatar (file/icon) if set; fallback to initials-color
+    ImageProvider? bg;
+    if (person.avatarFile != null) bg = FileImage(person.avatarFile!);
 
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: bg,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 2),
-      ),
-      alignment: Alignment.center,
-      child: Text(
+    final Widget child;
+    if (person.avatarFile != null) {
+      child = const SizedBox.shrink();
+    } else if (person.avatarIcon != null) {
+      child = Icon(person.avatarIcon, size: size <= 30 ? 16 : 18);
+    } else {
+      child = Text(
         _initials(person.name),
         style: TextStyle(
           color: Colors.white,
           fontWeight: FontWeight.w800,
           fontSize: size <= 30 ? 12 : 13,
         ),
+      );
+    }
+
+    final bgColor = person.avatarFile == null && person.avatarIcon == null
+        ? _colorFor(person.id)
+        : const Color(0xFFE5E7EB);
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: bgColor,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 2),
+        image: bg != null ? DecorationImage(image: bg, fit: BoxFit.cover) : null,
       ),
+      alignment: Alignment.center,
+      child: child,
     );
   }
 }

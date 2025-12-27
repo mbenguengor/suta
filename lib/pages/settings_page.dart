@@ -7,9 +7,15 @@ import 'package:suta/models.dart';
 class SettingsPage extends StatefulWidget {
   final UserProfile profile;
 
+  /// ✅ People list + SAVE callback (AppShell applies to header + left sheet)
+  final List<Person> people;
+  final void Function(List<Person> updatedPeople) onSavePeople;
+
   const SettingsPage({
     super.key,
     required this.profile,
+    required this.people,
+    required this.onSavePeople,
   });
 
   @override
@@ -65,6 +71,22 @@ class _SettingsPageState extends State<SettingsPage> {
   // ✅ Invite message (placeholder link for now)
   static const String _inviteMessage =
       "Check out SUTA app. It will allows you to never left something behind again https://example.com/download";
+
+  // ✅ Avatars list (reused for profile + people)
+  static const List<IconData> _availableAvatars = [
+    Icons.face_retouching_natural_outlined,
+    Icons.sentiment_satisfied_alt_outlined,
+    Icons.sentiment_very_satisfied_outlined,
+    Icons.sentiment_neutral_outlined,
+    Icons.sentiment_dissatisfied_outlined,
+    Icons.pets_outlined,
+    Icons.star_outline,
+    Icons.favorite_border,
+    Icons.sports_soccer_outlined,
+    Icons.flight_outlined,
+    Icons.music_note_outlined,
+    Icons.local_cafe_outlined,
+  ];
 
   InputDecoration _popoverDeco(String hint, {Widget? suffix}) {
     return InputDecoration(
@@ -174,104 +196,159 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _openPrivacyKidsSheet() {
-    _openRightSheetFromHeaderStop(
-      title: "Privacy notice for kids",
-      body: const _PrivacyKidsScrollable(),
-      widthFactor: 0.66,
-    );
-  }
+  // -------------------------
+  // ✅ NEW: Manage person sheet (3/4) with draft + Save/Cancel
+  // -------------------------
+  Future<void> _openManagePersonSheet() async {
+    final mq = MediaQuery.of(context);
 
-  void _openPrivacyAdultsSheet() {
-    _openRightSheetFromHeaderStop(
-      title: "Privacy notice for adults",
-      body: const _PrivacyAdultsScrollable(),
-      widthFactor: 0.66,
-    );
-  }
+    const double headerHeight = 72.0;
+    const double dividerThickness = 1.0;
+    final double topOffset = mq.padding.top + headerHeight + dividerThickness;
 
-  void _toggleHelpInline() => setState(() => _helpInlineOpen = !_helpInlineOpen);
+    // draft starts from current people, but no changes applied until Save
+    List<Person> draft = widget.people.map(_clonePersonDeep).toList(growable: true);
 
-  Widget _helpInlinePanel() {
-    const base = TextStyle(fontSize: 16, height: 1.25, color: Color(0xFF111827));
-    const email = TextStyle(fontSize: 16, height: 1.25, color: Color(0xFF2563EB));
+    // dirty flag controls outside-tap close + Save/Cancel enabled
+    bool dirty = false;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(_tileDividerIndent, 8, 12, 10),
-      child: RichText(
-        maxLines: 2,
-        softWrap: true,
-        overflow: TextOverflow.ellipsis,
-        text: const TextSpan(
-          style: base,
-          children: [
-            TextSpan(text: "You can request support or leave feedback by sending an email to: "),
-            TextSpan(text: "support@suta.com", style: email),
-          ],
-        ),
-      ),
-    );
-  }
+    void setDirty(bool v) {
+      // inside dialog only
+      dirty = v;
+    }
 
-  void _toggleInfoInline() => setState(() => _infoInlineOpen = !_infoInlineOpen);
+    await showGeneralDialog<void>(
+      context: context,
+      barrierLabel: "manage-person",
+      barrierDismissible: false, // ✅ we handle outside tap ourselves (only when not dirty)
+      barrierColor: Colors.black.withOpacity(0.10),
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (ctx, a1, a2) {
+        void closeDiscard() => Navigator.of(ctx).pop(); // discard changes
 
-  Widget _infoInlinePanel() {
-    const String osValue = "Android";
+        return StatefulBuilder(
+          builder: (ctx, setStateDlg) {
+            void markDirty() {
+              if (!dirty) setStateDlg(() => dirty = true);
+            }
 
-    const titleStyle = TextStyle(fontSize: 13.5, height: 1.2, color: Color(0xFF6B7280));
-    const infoStyle = TextStyle(fontSize: 13.5, height: 1.2, color: Color(0xFF111827));
+            void cancel() {
+              // discard
+              closeDiscard();
+            }
 
-    Widget row(String title, String info) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 3),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(width: 92, child: Text(title, style: infoStyle)),
-              Expanded(child: Text(info, style: titleStyle)),
-            ],
-          ),
+            void save() {
+              // apply
+              widget.onSavePeople(draft);
+              Navigator.of(ctx).pop();
+            }
+
+            return Stack(
+              children: [
+                // ✅ click outside: close ONLY if no modifications yet
+                Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      if (!dirty) closeDiscard();
+                    },
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FractionallySizedBox(
+                    widthFactor: 0.75, // ✅ 3/4 sheet
+                    heightFactor: 1,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: Padding(
+                        padding: EdgeInsets.only(top: topOffset),
+                        child: Material(
+                          color: Colors.white,
+                          elevation: 16,
+                          child: Column(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(10, 14, 12, 10),
+                                child: Row(
+                                  children: [
+                                    IconButton(
+                                      tooltip: "Back",
+                                      // ✅ always discards changes (spec)
+                                      onPressed: closeDiscard,
+                                      icon: const Icon(Icons.arrow_back),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    const Expanded(
+                                      child: Text(
+                                        "Manage person",
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w400,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Divider(height: 1, thickness: 1, color: Color(0xFFE6E8EF)),
+
+                              Expanded(
+                                child: _ManagePeopleSheetBody(
+                                  draftPeople: draft,
+                                  availableAvatars: _availableAvatars,
+                                  onChanged: () => markDirty(),
+                                  onDraftChanged: (next) {
+                                    setStateDlg(() {
+                                      draft = next;
+                                      setDirty(true);
+                                      dirty = true;
+                                    });
+                                  },
+                                ),
+                              ),
+
+                              // ✅ bottom-right buttons
+                              Container(
+                                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                                alignment: Alignment.centerRight,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    TextButton(
+                                      onPressed: dirty ? cancel : null,
+                                      child: const Text("Cancel"),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    FilledButton(
+                                      onPressed: dirty ? save : null,
+                                      child: const Text("Save"),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ).buildSlide(CurvedAnimation(parent: a1, curve: Curves.easeOut)),
+              ],
+            );
+          },
         );
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(_tileDividerIndent, 8, 12, 10),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          row("App Name", _appName),
-          row("Version", _appVersion),
-          row("Release date", _appReleaseDate),
-          row("OS", osValue),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _openInviteSheet() async {
-    await _openRightSheetFromHeaderStop(
-      title: "Select contact you want to send a invivation to:",
-      widthFactor: 0.75,
-      body: _InviteContactsSheet(messageBody: _inviteMessage),
+      },
     );
   }
 
   // -------------------------
   // Avatar picker UI + logic (writes to widget.profile)
   // -------------------------
-  static const List<IconData> _availableAvatars = [
-    Icons.face_retouching_natural_outlined,
-    Icons.sentiment_satisfied_alt_outlined,
-    Icons.sentiment_very_satisfied_outlined,
-    Icons.sentiment_neutral_outlined,
-    Icons.sentiment_dissatisfied_outlined,
-    Icons.pets_outlined,
-    Icons.star_outline,
-    Icons.favorite_border,
-    Icons.sports_soccer_outlined,
-    Icons.flight_outlined,
-    Icons.music_note_outlined,
-    Icons.local_cafe_outlined,
-  ];
-
   Future<void> _pickFromCamera() async {
     try {
       final XFile? picked = await _picker.pickImage(
@@ -663,6 +740,86 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  void _openPrivacyKidsSheet() {
+    _openRightSheetFromHeaderStop(
+      title: "Privacy notice for kids",
+      body: const _PrivacyKidsScrollable(),
+      widthFactor: 0.66,
+    );
+  }
+
+  void _openPrivacyAdultsSheet() {
+    _openRightSheetFromHeaderStop(
+      title: "Privacy notice for adults",
+      body: const _PrivacyAdultsScrollable(),
+      widthFactor: 0.66,
+    );
+  }
+
+  void _toggleHelpInline() => setState(() => _helpInlineOpen = !_helpInlineOpen);
+
+  Widget _helpInlinePanel() {
+    const base = TextStyle(fontSize: 16, height: 1.25, color: Color(0xFF111827));
+    const email = TextStyle(fontSize: 16, height: 1.25, color: Color(0xFF2563EB));
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(_tileDividerIndent, 8, 12, 10),
+      child: RichText(
+        maxLines: 2,
+        softWrap: true,
+        overflow: TextOverflow.ellipsis,
+        text: const TextSpan(
+          style: base,
+          children: [
+            TextSpan(text: "You can request support or leave feedback by sending an email to: "),
+            TextSpan(text: "support@suta.com", style: email),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _toggleInfoInline() => setState(() => _infoInlineOpen = !_infoInlineOpen);
+
+  Widget _infoInlinePanel() {
+    const String osValue = "Android";
+
+    const titleStyle = TextStyle(fontSize: 13.5, height: 1.2, color: Color(0xFF6B7280));
+    const infoStyle = TextStyle(fontSize: 13.5, height: 1.2, color: Color(0xFF111827));
+
+    Widget row(String title, String info) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(width: 92, child: Text(title, style: infoStyle)),
+              Expanded(child: Text(info, style: titleStyle)),
+            ],
+          ),
+        );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(_tileDividerIndent, 8, 12, 10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          row("App Name", _appName),
+          row("Version", _appVersion),
+          row("Release date", _appReleaseDate),
+          row("OS", osValue),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openInviteSheet() async {
+    await _openRightSheetFromHeaderStop(
+      title: "Select contact you want to send a invivation to:",
+      widthFactor: 0.75,
+      body: _InviteContactsSheet(messageBody: _inviteMessage),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const nameStyle = TextStyle(fontSize: 18);
@@ -833,6 +990,22 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const SizedBox(height: 12),
 
+            // ✅ NEW compact block exactly like Invite a friend measurements
+            _Card(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              child: Column(
+                children: [
+                  _SimpleTile(
+                    icon: Icons.manage_accounts_outlined,
+                    title: "Manage person",
+                    compact: true,
+                    onTap: _openManagePersonSheet,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
             _Card(
               child: Column(
                 children: [
@@ -950,9 +1123,800 @@ extension _SlideExt on Widget {
   }
 }
 
-// -------------------------
-// Invite contacts sheet (DEMO list)
-// -------------------------
+// =======================================================
+// ✅ MANAGE PEOPLE SHEET BODY
+// =======================================================
+
+class _ManagePeopleSheetBody extends StatefulWidget {
+  final List<Person> draftPeople;
+  final List<IconData> availableAvatars;
+
+  /// Called whenever ANY change happens (for dirty flag)
+  final VoidCallback onChanged;
+
+  /// Called when list structure changes (delete) so parent can keep reference
+  final void Function(List<Person> next) onDraftChanged;
+
+  const _ManagePeopleSheetBody({
+    required this.draftPeople,
+    required this.availableAvatars,
+    required this.onChanged,
+    required this.onDraftChanged,
+  });
+
+  @override
+  State<_ManagePeopleSheetBody> createState() => _ManagePeopleSheetBodyState();
+}
+
+class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
+  final ImagePicker _picker = ImagePicker();
+
+  String? _editingId;
+  final Map<String, TextEditingController> _nameCtrls = {};
+  final Map<String, FocusNode> _focus = {};
+
+  // delete confirm overlay (only one at a time)
+  OverlayEntry? _confirmEntry;
+  LayerLink? _activeConfirmLink;
+
+  // per-row delete anchors
+  final Map<String, LayerLink> _deleteLinks = {};
+
+  // prevent multiple avatar popovers at once
+  bool _popoverOpen = false;
+
+  @override
+  void dispose() {
+    _hideConfirm();
+    for (final c in _nameCtrls.values) {
+      c.dispose();
+    }
+    for (final f in _focus.values) {
+      f.dispose();
+    }
+    super.dispose();
+  }
+
+  TextEditingController _ctrlFor(Person p) {
+    return _nameCtrls.putIfAbsent(p.id, () => TextEditingController(text: p.name));
+  }
+
+  FocusNode _focusFor(Person p) {
+    return _focus.putIfAbsent(p.id, () => FocusNode());
+  }
+
+  LayerLink _deleteLinkFor(Person p) {
+    return _deleteLinks.putIfAbsent(p.id, () => LayerLink());
+  }
+
+  void _startEdit(Person p) {
+    final c = _ctrlFor(p);
+    c.text = p.name;
+    setState(() => _editingId = p.id);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _focusFor(p).requestFocus();
+      c.selection = TextSelection.fromPosition(TextPosition(offset: c.text.length));
+    });
+  }
+
+  void _cancelEdit(Person p) {
+    final c = _ctrlFor(p);
+    c.text = p.name;
+    setState(() => _editingId = null);
+  }
+
+  void _saveEdit(Person p) {
+    final c = _ctrlFor(p);
+    final v = c.text.trim();
+    if (v.isEmpty) return;
+
+    setState(() {
+      p.name = _capitalizeFirst(v);
+      _editingId = null;
+    });
+
+    widget.onChanged();
+  }
+
+  // ----------------------
+  // Avatar editing (per person) popover
+  // ----------------------
+
+  Future<void> _pickFromCamera(Person p) async {
+    try {
+      final XFile? picked = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 85,
+      );
+      if (picked == null || !mounted) return;
+
+      setState(() {
+        p.avatarFile = File(picked.path);
+        p.avatarIcon = null;
+      });
+      widget.onChanged();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Could not open camera.")),
+      );
+    }
+  }
+
+  Future<void> _pickFromGallery(Person p) async {
+    try {
+      final XFile? picked = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+      );
+      if (picked == null || !mounted) return;
+
+      setState(() {
+        p.avatarFile = File(picked.path);
+        p.avatarIcon = null;
+      });
+      widget.onChanged();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Could not open gallery.")),
+      );
+    }
+  }
+
+  Future<void> _showAvatarActionsPopover({
+    required GlobalKey anchorKey,
+    required Person person,
+  }) async {
+    if (_popoverOpen) return;
+    _popoverOpen = true;
+
+    try {
+      await showGeneralDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        barrierLabel: "dismiss",
+        barrierColor: Colors.black.withOpacity(0.08),
+        transitionDuration: const Duration(milliseconds: 140),
+        pageBuilder: (ctx, a1, a2) {
+          void close() => Navigator.of(ctx).pop();
+
+          return GestureDetector(
+            onTap: close,
+            child: Material(
+              type: MaterialType.transparency,
+              child: LayoutBuilder(
+                builder: (ctx, constraints) {
+                  final mq = MediaQuery.of(ctx);
+
+                  final screenW = mq.size.width;
+                  final screenH = mq.size.height;
+                  final viewInsets = mq.viewInsets;
+                  final safePad = mq.padding;
+
+                  final double effectiveH = screenH - viewInsets.bottom;
+
+                  final overlayBox =
+                      Overlay.of(ctx).context.findRenderObject() as RenderBox;
+
+                  final anchorCtx = anchorKey.currentContext;
+                  if (anchorCtx == null) return const SizedBox.shrink();
+
+                  final anchorBox = anchorCtx.findRenderObject() as RenderBox;
+
+                  final anchorTopLeft =
+                      anchorBox.localToGlobal(Offset.zero, ancestor: overlayBox);
+                  final anchorBottomLeft = anchorBox.localToGlobal(
+                    Offset(0, anchorBox.size.height),
+                    ancestor: overlayBox,
+                  );
+
+                  const double margin = 12;
+                  const double gap = 8;
+
+                  final double popoverWidth =
+                      (260.0).clamp(160.0, screenW - (margin * 2)).toDouble();
+
+                  double left = anchorBottomLeft.dx;
+                  if (left + popoverWidth > screenW - margin) {
+                    left = (screenW - popoverWidth - margin).clamp(margin, screenW);
+                  }
+                  if (left < margin) left = margin;
+
+                  final double topBelow = anchorBottomLeft.dy + gap;
+                  final double availableBelow = (effectiveH - margin) - topBelow;
+                  final double availableAbove = (anchorTopLeft.dy - margin) - gap;
+
+                  final bool placeAbove =
+                      availableBelow < 140 && availableAbove > availableBelow;
+
+                  final double maxHeight = (placeAbove ? availableAbove : availableBelow)
+                      .clamp(120.0, effectiveH - (margin * 2))
+                      .toDouble();
+
+                  double top = placeAbove
+                      ? (anchorTopLeft.dy - gap - maxHeight)
+                      : topBelow;
+                  top = top.clamp(margin + safePad.top, effectiveH - margin);
+
+                  final hasAvatar = person.avatarFile != null || person.avatarIcon != null;
+
+                  return AnimatedPadding(
+                    duration: const Duration(milliseconds: 160),
+                    curve: Curves.easeOut,
+                    padding: EdgeInsets.only(bottom: viewInsets.bottom),
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          left: left,
+                          top: top,
+                          width: popoverWidth,
+                          child: GestureDetector(
+                            onTap: () {},
+                            child: Material(
+                              color: Colors.white,
+                              elevation: 12,
+                              borderRadius: BorderRadius.circular(16),
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: popoverWidth,
+                                  maxHeight: maxHeight,
+                                ),
+                                child: SingleChildScrollView(
+                                  padding: EdgeInsets.zero,
+                                  child: Padding(
+                                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        _AvatarAction(
+                                          icon: Icons.photo_camera_outlined,
+                                          label: "Take a picture",
+                                          onTap: () async {
+                                            close();
+                                            await _pickFromCamera(person);
+                                          },
+                                        ),
+                                        const SizedBox(height: 6),
+                                        _AvatarAction(
+                                          icon: Icons.photo_library_outlined,
+                                          label: "Choose a picture",
+                                          onTap: () async {
+                                            close();
+                                            await _pickFromGallery(person);
+                                          },
+                                        ),
+                                        const SizedBox(height: 6),
+                                        _AvatarAction(
+                                          icon: Icons.person_outline,
+                                          label: "Choose an avatar",
+                                          onTap: () async {
+                                            close();
+                                            await Future.delayed(const Duration(milliseconds: 10));
+                                            if (!mounted) return;
+                                            await _showAvatarGridPopover(anchorKey: anchorKey, person: person);
+                                          },
+                                        ),
+                                        if (hasAvatar) ...[
+                                          const Divider(height: 18),
+                                          _AvatarAction(
+                                            icon: Icons.delete_outline,
+                                            label: "Remove profile picture",
+                                            danger: true,
+                                            onTap: () {
+                                              setState(() {
+                                                person.avatarFile = null;
+                                                person.avatarIcon = null;
+                                              });
+                                              widget.onChanged();
+                                              close();
+                                            },
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          );
+        },
+        transitionBuilder: (ctx, anim, sec, child) {
+          final curved = CurvedAnimation(parent: anim, curve: Curves.easeOut);
+          return FadeTransition(
+            opacity: curved,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.98, end: 1).animate(curved),
+              child: child,
+            ),
+          );
+        },
+      );
+    } finally {
+      _popoverOpen = false;
+    }
+  }
+
+  Future<void> _showAvatarGridPopover({
+    required GlobalKey anchorKey,
+    required Person person,
+  }) async {
+    if (_popoverOpen) return;
+    _popoverOpen = true;
+
+    try {
+      await showGeneralDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        barrierLabel: "dismiss",
+        barrierColor: Colors.black.withOpacity(0.08),
+        transitionDuration: const Duration(milliseconds: 140),
+        pageBuilder: (ctx, a1, a2) {
+          void close() => Navigator.of(ctx).pop();
+
+          return GestureDetector(
+            onTap: close,
+            child: Material(
+              type: MaterialType.transparency,
+              child: LayoutBuilder(
+                builder: (ctx, constraints) {
+                  final mq = MediaQuery.of(ctx);
+                  final screenW = mq.size.width;
+                  final screenH = mq.size.height;
+                  final viewInsets = mq.viewInsets;
+                  final safePad = mq.padding;
+                  final double effectiveH = screenH - viewInsets.bottom;
+
+                  final overlayBox =
+                      Overlay.of(ctx).context.findRenderObject() as RenderBox;
+
+                  final anchorCtx = anchorKey.currentContext;
+                  if (anchorCtx == null) return const SizedBox.shrink();
+
+                  final anchorBox = anchorCtx.findRenderObject() as RenderBox;
+                  final anchorTopLeft =
+                      anchorBox.localToGlobal(Offset.zero, ancestor: overlayBox);
+                  final anchorBottomLeft = anchorBox.localToGlobal(
+                    Offset(0, anchorBox.size.height),
+                    ancestor: overlayBox,
+                  );
+
+                  const double margin = 12;
+                  const double gap = 8;
+
+                  final double popoverWidth =
+                      (300.0).clamp(180.0, screenW - (margin * 2)).toDouble();
+
+                  double left = anchorBottomLeft.dx;
+                  if (left + popoverWidth > screenW - margin) {
+                    left = (screenW - popoverWidth - margin).clamp(margin, screenW);
+                  }
+                  if (left < margin) left = margin;
+
+                  final double topBelow = anchorBottomLeft.dy + gap;
+                  final double availableBelow = (effectiveH - margin) - topBelow;
+                  final double availableAbove = (anchorTopLeft.dy - margin) - gap;
+
+                  final bool placeAbove =
+                      availableBelow < 180 && availableAbove > availableBelow;
+
+                  final double maxHeight = (placeAbove ? availableAbove : availableBelow)
+                      .clamp(160.0, effectiveH - (margin * 2))
+                      .toDouble();
+
+                  double top = placeAbove
+                      ? (anchorTopLeft.dy - gap - maxHeight)
+                      : topBelow;
+                  top = top.clamp(margin + safePad.top, effectiveH - margin);
+
+                  return AnimatedPadding(
+                    duration: const Duration(milliseconds: 160),
+                    curve: Curves.easeOut,
+                    padding: EdgeInsets.only(bottom: viewInsets.bottom),
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          left: left,
+                          top: top,
+                          width: popoverWidth,
+                          child: GestureDetector(
+                            onTap: () {},
+                            child: Material(
+                              color: Colors.white,
+                              elevation: 12,
+                              borderRadius: BorderRadius.circular(16),
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: popoverWidth,
+                                  maxHeight: maxHeight,
+                                ),
+                                child: SingleChildScrollView(
+                                  padding: EdgeInsets.zero,
+                                  child: Padding(
+                                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: Text(
+                                            "Choose an avatar",
+                                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 10),
+                                        GridView.builder(
+                                          shrinkWrap: true,
+                                          itemCount: widget.availableAvatars.length,
+                                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                            crossAxisCount: 4,
+                                            mainAxisSpacing: 10,
+                                            crossAxisSpacing: 10,
+                                          ),
+                                          itemBuilder: (ctx2, i) {
+                                            final icon = widget.availableAvatars[i];
+                                            return InkWell(
+                                              borderRadius: BorderRadius.circular(14),
+                                              onTap: () {
+                                                setState(() {
+                                                  person.avatarIcon = icon;
+                                                  person.avatarFile = null;
+                                                });
+                                                widget.onChanged();
+                                                close();
+                                              },
+                                              child: Container(
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFFF3F4F6),
+                                                  borderRadius: BorderRadius.circular(14),
+                                                ),
+                                                child: Center(child: Icon(icon, size: 26)),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                        const SizedBox(height: 10),
+                                        Align(
+                                          alignment: Alignment.centerRight,
+                                          child: TextButton(onPressed: close, child: const Text("Cancel")),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          );
+        },
+        transitionBuilder: (ctx, anim, sec, child) {
+          final curved = CurvedAnimation(parent: anim, curve: Curves.easeOut);
+          return FadeTransition(
+            opacity: curved,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.98, end: 1).animate(curved),
+              child: child,
+            ),
+          );
+        },
+      );
+    } finally {
+      _popoverOpen = false;
+    }
+  }
+
+  // ----------------------
+  // Delete confirm (anchored popover like Notifications)
+  // ----------------------
+
+  void _hideConfirm() {
+    _confirmEntry?.remove();
+    _confirmEntry = null;
+    _activeConfirmLink = null;
+  }
+
+  void _showConfirmFor(Person p) {
+    final link = _deleteLinkFor(p);
+
+    // toggle behavior
+    if (_confirmEntry != null && _activeConfirmLink == link) {
+      _hideConfirm();
+      return;
+    }
+    _hideConfirm();
+
+    final overlay = Overlay.of(context);
+
+    _activeConfirmLink = link;
+    _confirmEntry = OverlayEntry(
+      builder: (ctx) {
+        return Positioned.fill(
+          child: Stack(
+            children: [
+              GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: _hideConfirm,
+                child: const SizedBox.expand(),
+              ),
+              CompositedTransformFollower(
+                link: link,
+                showWhenUnlinked: false,
+                targetAnchor: Alignment.bottomRight,
+                followerAnchor: Alignment.topRight,
+                offset: const Offset(0, 6),
+                child: Material(
+                  color: Colors.transparent,
+                  child: Material(
+                    color: Colors.white,
+                    elevation: 10,
+                    shadowColor: Colors.black.withOpacity(0.18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      side: const BorderSide(color: Color(0x11000000)),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: IntrinsicWidth(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              "Confirm deletion?",
+                              style: TextStyle(fontSize: 13, height: 1.2),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                TextButton(
+                                  onPressed: _hideConfirm,
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+                                    textStyle: const TextStyle(fontSize: 13, height: 1.0),
+                                  ),
+                                  child: const Text("No"),
+                                ),
+                                const SizedBox(width: 8),
+                                FilledButton(
+                                  onPressed: () {
+                                    _hideConfirm();
+                                    final next = [...widget.draftPeople]..removeWhere((x) => x.id == p.id);
+                                    widget.onDraftChanged(next);
+                                    widget.onChanged();
+                                  },
+                                  style: FilledButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+                                    textStyle: const TextStyle(fontSize: 13, height: 1.0),
+                                  ),
+                                  child: const Text("Yes"),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    overlay.insert(_confirmEntry!);
+  }
+
+  // ----------------------
+  // UI helpers
+  // ----------------------
+
+  Widget _miniAvatar(Person p) {
+    ImageProvider? bg;
+    if (p.avatarFile != null) bg = FileImage(p.avatarFile!);
+
+    final Widget child;
+    if (p.avatarFile != null) {
+      child = const SizedBox.shrink();
+    } else if (p.avatarIcon != null) {
+      child = Icon(p.avatarIcon, size: 18);
+    } else {
+      child = Text(
+        _initials(p.name),
+        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800),
+      );
+    }
+
+    final bgColor = p.avatarFile == null && p.avatarIcon == null
+        ? _colorFor(p.id)
+        : const Color(0xFFE5E7EB);
+
+    return CircleAvatar(
+      radius: 18,
+      backgroundColor: bgColor,
+      backgroundImage: bg,
+      child: child,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.draftPeople.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: Text("No people yet.", style: TextStyle(color: Color(0xFF9CA3AF))),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
+      itemCount: widget.draftPeople.length,
+      separatorBuilder: (_, __) => const Divider(height: 14, thickness: 1, color: Color(0xFFE6E8EF)),
+      itemBuilder: (ctx, i) {
+        final p = widget.draftPeople[i];
+        final isEditing = _editingId == p.id;
+        final ctrl = _ctrlFor(p);
+
+        // avatar anchor for popover
+        final avatarKey = GlobalKey();
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            InkWell(
+              key: avatarKey,
+              onTap: () => _showAvatarActionsPopover(anchorKey: avatarKey, person: p),
+              borderRadius: BorderRadius.circular(999),
+              child: _miniAvatar(p),
+            ),
+            const SizedBox(width: 12),
+
+            Expanded(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: isEditing
+                        ? TextField(
+                            controller: ctrl,
+                            focusNode: _focusFor(p),
+                            autofocus: true,
+                            textCapitalization: TextCapitalization.words,
+                            maxLines: 1,
+                            decoration: const InputDecoration(
+                              isDense: true,
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                            onChanged: (_) => widget.onChanged(),
+                            onSubmitted: (_) => _saveEdit(p),
+                            style: const TextStyle(fontSize: 16),
+                          )
+                        : Text(
+                            p.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                  ),
+                  const SizedBox(width: 8),
+
+                  if (!isEditing) ...[
+                    InkWell(
+                      onTap: () => _startEdit(p),
+                      borderRadius: BorderRadius.circular(10),
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(Icons.edit_outlined, size: 16),
+                      ),
+                    ),
+                  ] else ...[
+                    InkWell(
+                      onTap: () => _saveEdit(p),
+                      borderRadius: BorderRadius.circular(10),
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(Icons.check, size: 18),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    InkWell(
+                      onTap: () => _cancelEdit(p),
+                      borderRadius: BorderRadius.circular(10),
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(Icons.close, size: 18),
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(width: 8),
+
+                  // ✅ delete icon = red circle with white minus + anchored confirm under it
+                  CompositedTransformTarget(
+                    link: _deleteLinkFor(p),
+                    child: InkWell(
+                      onTap: () => _showConfirmFor(p),
+                      borderRadius: BorderRadius.circular(999),
+                      child: Container(
+                        width: 20,
+                        height: 20,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFEF4444),
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: Container(
+                          width: 10,
+                          height: 2.2,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// Deep clone so edits are draft-only until Save
+Person _clonePersonDeep(Person p) {
+  return Person(
+    id: p.id,
+    name: p.name,
+    pins: p.pins
+        .map(
+          (x) => PinItem(
+            id: x.id,
+            name: x.name,
+            muted: x.muted,
+            synced: x.synced,
+            inRange: x.inRange,
+            lastStatusOn: x.lastStatusOn,
+          ),
+        )
+        .toList(),
+    avatarFile: p.avatarFile,
+    avatarIcon: p.avatarIcon,
+  );
+}
+
+// =======================================================
+// EXISTING INVITE SHEET (DEMO list)
+// =======================================================
+
 class _InviteContact {
   final String name;
   final String phone;
@@ -1799,4 +2763,26 @@ String _capitalizeFirst(String s) {
         return w[0].toUpperCase() + w.substring(1);
       })
       .join(' ');
+}
+
+String _initials(String name) {
+  final parts =
+      name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  if (parts.isEmpty) return "?";
+  if (parts.length == 1) return parts.first.characters.first.toUpperCase();
+  return (parts.first.characters.first + parts.last.characters.first)
+      .toUpperCase();
+}
+
+Color _colorFor(String key) {
+  final hash = key.codeUnits.fold<int>(0, (a, b) => a + b);
+  final colors = <Color>[
+    const Color(0xFF2E6BE6),
+    const Color(0xFF16A34A),
+    const Color(0xFFF59E0B),
+    const Color(0xFF8B5CF6),
+    const Color(0xFFEF4444),
+    const Color(0xFF06B6D4),
+  ];
+  return colors[hash % colors.length];
 }

@@ -23,24 +23,8 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
   // ✅ Shared user profile (name/email/avatar) used by Header + Settings
   late final UserProfile _profile;
 
-  // Temporary local data
-  final List<Person> people = [
-    Person(
-      id: "p1",
-      name: "Fatou",
-      pins: [
-        PinItem(id: "pin1", name: "iPad", synced: true, inRange: true), // green
-        PinItem(id: "pin2", name: "Keys", synced: true, inRange: false), // red
-      ],
-    ),
-    Person(
-      id: "p2",
-      name: "Awa",
-      pins: [
-        PinItem(id: "pin3", name: "Lunchbox", synced: false, inRange: true), // orange
-      ],
-    ),
-  ];
+  // ✅ People is mutable now (we can save edits / deletions)
+  late List<Person> people;
 
   // ✅ Notifications state
   final List<AppNotification> _notifications = [];
@@ -49,7 +33,8 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
   int selectedPersonIndex = 0;
   Person get currentPerson => people[selectedPersonIndex];
 
-  late final PageController _peopleController;
+  // ✅ PageController must be rebuildable if people list changes
+  late PageController _peopleController;
 
   // ✅ Virtual paging so direction never flips on wrap
   late int _basePage;
@@ -62,6 +47,25 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
   void initState() {
     super.initState();
 
+    // Temporary local data
+    people = [
+      Person(
+        id: "p1",
+        name: "Fatou",
+        pins: [
+          PinItem(id: "pin1", name: "iPad", synced: true, inRange: true),
+          PinItem(id: "pin2", name: "Keys", synced: true, inRange: false),
+        ],
+      ),
+      Person(
+        id: "p2",
+        name: "Awa",
+        pins: [
+          PinItem(id: "pin3", name: "Lunchbox", synced: false, inRange: true),
+        ],
+      ),
+    ];
+
     // Normalize person names (demo)
     for (final p in people) {
       p.name = _capitalizeFirst(p.name);
@@ -73,17 +77,33 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
       email: "user@email.com",
     );
 
-    final len = people.isEmpty ? 1 : people.length;
-    _basePage = len * 1000;
-    final initialVirtual = _basePage + selectedPersonIndex;
-
-    _peopleController = PageController(initialPage: initialVirtual);
+    _initOrRebuildPeopleController(keepSelectedIndex: true);
 
     _panelCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 220),
       reverseDuration: const Duration(milliseconds: 180),
     );
+  }
+
+  void _initOrRebuildPeopleController({required bool keepSelectedIndex}) {
+    final len = people.isEmpty ? 1 : people.length;
+
+    if (keepSelectedIndex && people.isNotEmpty) {
+      selectedPersonIndex = selectedPersonIndex.clamp(0, people.length - 1);
+    } else {
+      selectedPersonIndex = 0;
+    }
+
+    _basePage = len * 1000;
+    final initialVirtual = _basePage + selectedPersonIndex;
+
+    // dispose old controller if any
+    try {
+      _peopleController.dispose();
+    } catch (_) {}
+
+    _peopleController = PageController(initialPage: initialVirtual);
   }
 
   @override
@@ -120,7 +140,6 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
       _notifications.insert(0, n);
     });
 
-    // ✅ no BuildContext warning (uses global key)
     if (notificationsEnabled) {
       final msg = "${person.name} • ${pin.name} • ${notificationEventLabel(event)}";
       scaffoldMessengerKey.currentState?.showSnackBar(
@@ -254,10 +273,25 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
       people.add(Person(id: newId, name: normalized, pins: []));
     });
 
-    final len = people.length;
-    _basePage = len * 1000;
+    // ✅ rebuild controller because length changed
+    _initOrRebuildPeopleController(keepSelectedIndex: true);
 
     _goToPerson(people.length - 1);
+  }
+
+  // ✅ Called by SettingsPage "Manage person" SAVE
+  void _applyPeopleFromSettings(List<Person> updated) {
+    setState(() {
+      people = updated;
+      if (people.isEmpty) {
+        selectedPersonIndex = 0;
+      } else {
+        selectedPersonIndex = selectedPersonIndex.clamp(0, people.length - 1);
+      }
+    });
+
+    // ✅ rebuild controller because order/length might change
+    _initOrRebuildPeopleController(keepSelectedIndex: true);
   }
 
   Future<void> _setTab(int i) async {
@@ -377,8 +411,12 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
         onSetUnread: _setNotificationUnread,
       ),
 
-      // ✅ Settings now uses shared profile
-      SettingsPage(profile: _profile),
+      // ✅ Settings now uses shared profile + manage people SAVE
+      SettingsPage(
+        profile: _profile,
+        people: people,
+        onSavePeople: _applyPeopleFromSettings,
+      ),
     ];
 
     return Scaffold(
@@ -389,7 +427,7 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
               AppHeader(
                 people: people,
                 selectedPersonIndex: selectedPersonIndex,
-                profile: _profile, // ✅ shared
+                profile: _profile,
                 notificationsEnabled: notificationsEnabled,
                 onToggleNotifications: () =>
                     setState(() => notificationsEnabled = !notificationsEnabled),
@@ -598,6 +636,34 @@ class _PeopleSidePanelState extends State<_PeopleSidePanel> {
     _closeAddPopup();
   }
 
+  Widget _sideAvatar(Person p) {
+    ImageProvider? bg;
+    if (p.avatarFile != null) bg = FileImage(p.avatarFile!);
+
+    final Widget child;
+    if (p.avatarFile != null) {
+      child = const SizedBox.shrink();
+    } else if (p.avatarIcon != null) {
+      child = Icon(p.avatarIcon, size: 16);
+    } else {
+      child = Text(
+        _initials(p.name),
+        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800),
+      );
+    }
+
+    final bgColor = p.avatarFile == null && p.avatarIcon == null
+        ? _colorFor(p.id)
+        : const Color(0xFFE5E7EB);
+
+    return CircleAvatar(
+      radius: 15,
+      backgroundColor: bgColor,
+      backgroundImage: bg,
+      child: child,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -669,6 +735,7 @@ class _PeopleSidePanelState extends State<_PeopleSidePanel> {
                                       _PersonRow(
                                         person: widget.people[i],
                                         selected: i == widget.selectedPersonIndex,
+                                        avatarBuilder: _sideAvatar,
                                         onTap: () => widget.onSelectPerson(i),
                                       ),
                                       const SizedBox(height: 4),
@@ -763,10 +830,13 @@ class _PersonRow extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
+  final Widget Function(Person) avatarBuilder;
+
   const _PersonRow({
     required this.person,
     required this.selected,
     required this.onTap,
+    required this.avatarBuilder,
   });
 
   @override
@@ -782,14 +852,7 @@ class _PersonRow extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              CircleAvatar(
-                radius: 15,
-                backgroundColor: _colorFor(person.id),
-                child: Text(
-                  _initials(person.name),
-                  style: const TextStyle(color: Colors.white, fontSize: 12),
-                ),
-              ),
+              avatarBuilder(person),
               const SizedBox(width: 10),
               Expanded(
                 child: SizedBox(

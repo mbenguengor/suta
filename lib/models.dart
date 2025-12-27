@@ -9,10 +9,10 @@ class PinItem {
   bool muted;
   bool synced;
 
-  // ✅ NEW: status meaning "still in range"
+  // ✅ status meaning "still in range"
   bool inRange;
 
-  // ✅ NEW: when the current status was set
+  // ✅ when the current status was set
   DateTime lastStatusOn;
 
   PinItem({
@@ -30,10 +30,16 @@ class Person {
   String name;
   final List<PinItem> pins;
 
+  // ✅ NEW: per-person avatar (like profile)
+  File? avatarFile;
+  IconData? avatarIcon;
+
   Person({
     required this.id,
     required this.name,
     required this.pins,
+    this.avatarFile,
+    this.avatarIcon,
   });
 }
 
