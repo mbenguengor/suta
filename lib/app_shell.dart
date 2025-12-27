@@ -20,6 +20,9 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
   int tabIndex = 0;
   bool notificationsEnabled = true;
 
+  // ✅ Shared user profile (name/email/avatar) used by Header + Settings
+  late final UserProfile _profile;
+
   // Temporary local data
   final List<Person> people = [
     Person(
@@ -59,9 +62,16 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
   void initState() {
     super.initState();
 
+    // Normalize person names (demo)
     for (final p in people) {
       p.name = _capitalizeFirst(p.name);
     }
+
+    // ✅ Initialize shared profile (demo defaults)
+    _profile = UserProfile(
+      fullName: "Ngor",
+      email: "user@email.com",
+    );
 
     final len = people.isEmpty ? 1 : people.length;
     _basePage = len * 1000;
@@ -80,6 +90,7 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
   void dispose() {
     _peopleController.dispose();
     _panelCtrl.dispose();
+    _profile.dispose();
     super.dispose();
   }
 
@@ -129,7 +140,6 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
     });
   }
 
-  // ✅ Add demo notification (so you can test quickly)
   void _addDemoNotification() {
     if (people.isEmpty) return;
 
@@ -168,7 +178,6 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
     return p.round();
   }
 
-  // ✅ Always animate FORWARD only (left -> right)
   void _goToPerson(int targetRealIndex) {
     if (people.isEmpty) return;
     if (targetRealIndex < 0 || targetRealIndex >= people.length) return;
@@ -217,7 +226,6 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
     );
   }
 
-  // ✅ Opening panel always redirects to Home (tab 0) but keeps sheet open
   void _openPeoplePanel() {
     if (_panelVisible) return;
 
@@ -279,18 +287,15 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
       if (foundPin != null) break;
     }
 
-    // ✅ make non-null locals so no nullable access errors
     final person = foundPerson;
     final pin = foundPin;
     if (person == null || pin == null) return;
 
-    // Demo refresh
     setState(() {
       pin.lastStatusOn = DateTime.now();
       pin.inRange = !pin.inRange;
     });
 
-    // Emit events (demo)
     if (!pin.synced) {
       _emitNotification(
         person: person,
@@ -365,8 +370,6 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
         people: people,
         onRefreshPin: _onRefreshPinFromStatus,
       ),
-
-      // ✅ Updated notifications page with demo button + actions
       NotificationsPage(
         notifications: _notifications,
         onAddDemoNotification: _addDemoNotification,
@@ -374,7 +377,8 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
         onSetUnread: _setNotificationUnread,
       ),
 
-      const SettingsPage(),
+      // ✅ Settings now uses shared profile
+      SettingsPage(profile: _profile),
     ];
 
     return Scaffold(
@@ -385,6 +389,7 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
               AppHeader(
                 people: people,
                 selectedPersonIndex: selectedPersonIndex,
+                profile: _profile, // ✅ shared
                 notificationsEnabled: notificationsEnabled,
                 onToggleNotifications: () =>
                     setState(() => notificationsEnabled = !notificationsEnabled),
@@ -775,7 +780,7 @@ class _PersonRow extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center, // ✅ ensure center
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               CircleAvatar(
                 radius: 15,
@@ -788,9 +793,9 @@ class _PersonRow extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: SizedBox(
-                  height: 30, // ✅ same as avatar diameter (15 * 2)
+                  height: 30,
                   child: Align(
-                    alignment: Alignment.centerLeft, // ✅ vertical center + left align
+                    alignment: Alignment.centerLeft,
                     child: Text(
                       _capitalizeFirst(person.name),
                       style: const TextStyle(fontSize: 16),

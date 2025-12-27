@@ -1,9 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:suta/models.dart';
 
 class AppHeader extends StatelessWidget {
   final List<Person> people;
   final int selectedPersonIndex;
+
+  /// ✅ Shared user profile (avatar/name/email live here)
+  final UserProfile profile;
 
   /// Bell controls whether the app is allowed to send phone notifications.
   final bool notificationsEnabled;
@@ -19,6 +23,7 @@ class AppHeader extends StatelessWidget {
     super.key,
     required this.people,
     required this.selectedPersonIndex,
+    required this.profile,
     required this.notificationsEnabled,
     required this.onToggleNotifications,
     required this.onOpenProfile,
@@ -66,8 +71,9 @@ class AppHeader extends StatelessWidget {
 
                 // ✅ Bell = allow/deny phone notifications
                 IconButton(
-                  tooltip:
-                      notificationsEnabled ? "Notifications on" : "Notifications off",
+                  tooltip: notificationsEnabled
+                      ? "Notifications on"
+                      : "Notifications off",
                   onPressed: onToggleNotifications,
                   icon: Icon(
                     notificationsEnabled
@@ -77,13 +83,35 @@ class AppHeader extends StatelessWidget {
                 ),
 
                 const SizedBox(width: 6),
-                InkWell(
-                  onTap: onOpenProfile,
-                  borderRadius: BorderRadius.circular(999),
-                  child: const CircleAvatar(
-                    radius: 18,
-                    child: Icon(Icons.person),
-                  ),
+
+                // ✅ RIGHT profile avatar is shared everywhere
+                AnimatedBuilder(
+                  animation: profile,
+                  builder: (context, _) {
+                    ImageProvider? bg;
+                    if (profile.avatarFile != null) {
+                      bg = FileImage(profile.avatarFile as File);
+                    }
+
+                    final Widget child;
+                    if (profile.avatarFile != null) {
+                      child = const SizedBox.shrink();
+                    } else if (profile.avatarIcon != null) {
+                      child = Icon(profile.avatarIcon, size: 18);
+                    } else {
+                      child = const Icon(Icons.person, size: 18);
+                    }
+
+                    return InkWell(
+                      onTap: onOpenProfile,
+                      borderRadius: BorderRadius.circular(999),
+                      child: CircleAvatar(
+                        radius: 18,
+                        backgroundImage: bg,
+                        child: child,
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -256,7 +284,6 @@ class _SelectedPersonChip extends StatelessWidget {
     const border = Color(0xFFE6E8EF);
 
     return Container(
-      // ✅ remove vertical padding: this was what made centering feel off
       padding: EdgeInsets.symmetric(horizontal: paddingH),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -264,7 +291,6 @@ class _SelectedPersonChip extends StatelessWidget {
         border: Border.all(color: border, width: 1),
       ),
       child: SizedBox(
-        // ✅ lock the chip content height to avatar size so everything centers perfectly
         height: avatarSize,
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -343,8 +369,3 @@ Color _colorFor(String key) {
   ];
   return colors[hash % colors.length];
 }
-
-
-
-
-

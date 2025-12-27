@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
+
 class PinItem {
   final String id;
   String name;
@@ -32,6 +35,67 @@ class Person {
     required this.name,
     required this.pins,
   });
+}
+
+/// =======================================================
+/// ✅ USER PROFILE (shared across Header + Settings)
+/// =======================================================
+class UserProfile extends ChangeNotifier {
+  String _fullName;
+  String _email;
+
+  File? _avatarFile;
+  IconData? _avatarIcon;
+
+  UserProfile({
+    required String fullName,
+    required String email,
+    File? avatarFile,
+    IconData? avatarIcon,
+  })  : _fullName = fullName,
+        _email = email,
+        _avatarFile = avatarFile,
+        _avatarIcon = avatarIcon;
+
+  String get fullName => _fullName;
+  String get email => _email;
+
+  File? get avatarFile => _avatarFile;
+  IconData? get avatarIcon => _avatarIcon;
+
+  void setFullName(String v) {
+    final next = v.trim();
+    if (next.isEmpty) return;
+    if (next == _fullName) return;
+    _fullName = next;
+    notifyListeners();
+  }
+
+  void setEmail(String v) {
+    final next = v.trim();
+    if (next.isEmpty) return;
+    if (next == _email) return;
+    _email = next;
+    notifyListeners();
+  }
+
+  void setAvatarFile(File file) {
+    _avatarFile = file;
+    _avatarIcon = null;
+    notifyListeners();
+  }
+
+  void setAvatarIcon(IconData icon) {
+    _avatarIcon = icon;
+    _avatarFile = null;
+    notifyListeners();
+  }
+
+  void clearAvatar() {
+    _avatarFile = null;
+    _avatarIcon = null;
+    notifyListeners();
+  }
 }
 
 /// =======================================================

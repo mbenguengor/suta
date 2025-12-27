@@ -2,19 +2,21 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:suta/models.dart';
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key});
+  final UserProfile profile;
+
+  const SettingsPage({
+    super.key,
+    required this.profile,
+  });
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  // ✅ Temporary placeholders (replace later with real user/account storage)
-  String _fullName = "Ngor";
-  String _email = "user@email.com";
-
   // Store a "real" password for demo validation (DON'T do this in production like this)
   String _password = "123456";
 
@@ -25,10 +27,8 @@ class _SettingsPageState extends State<SettingsPage> {
   String _nameDraftBeforeEdit = "";
   bool _nameEmptyError = false;
 
-  // ✅ Profile picture / avatar state
+  // ✅ Profile picture / avatar state (stored in widget.profile)
   final ImagePicker _picker = ImagePicker();
-  File? _profileFile; // camera/gallery result
-  IconData? _selectedAvatarIcon; // app-provided avatar choice
 
   // ✅ Keys to anchor popovers under the crayons / avatar
   final GlobalKey _avatarEditKey = GlobalKey();
@@ -50,7 +50,7 @@ class _SettingsPageState extends State<SettingsPage> {
   // ---- layout tuning ----
   static const double _avatarRadius = 18; // small like footer
   static const double _nameStartIndent = (_avatarRadius * 2) + 12; // avatar diameter + gap
-  static const double _tileDividerIndent = 40.0; // 6 pad + 22 icon + 12 gap (starts at title)
+  static const double _tileDividerIndent = 40.0;
   static const Color _dividerColor = Color(0xFFE6E8EF);
 
   // ---- shared popover form style (email + password SAME) ----
@@ -60,7 +60,7 @@ class _SettingsPageState extends State<SettingsPage> {
   // ---- app info (edit if needed) ----
   static const String _appName = "SUTA";
   static const String _appVersion = "0.0.1";
-  static const String _appReleaseDate = "2025-12-25"; // change later if needed
+  static const String _appReleaseDate = "2025-12-25";
 
   // ✅ Invite message (placeholder link for now)
   static const String _inviteMessage =
@@ -89,7 +89,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: _fullName);
+    _nameController = TextEditingController(text: widget.profile.fullName);
   }
 
   @override
@@ -154,7 +154,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   fontSize: 16,
-                                  fontWeight: FontWeight.w400, // ✅ not bold
+                                  fontWeight: FontWeight.w400,
                                 ),
                               ),
                             ),
@@ -174,9 +174,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // -------------------------
-  // Privacy sheets (start under header divider)
-  // -------------------------
   void _openPrivacyKidsSheet() {
     _openRightSheetFromHeaderStop(
       title: "Privacy notice for kids",
@@ -193,12 +190,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // -------------------------
-  // ✅ INLINE Help & Feedback (wrap to 2nd line when needed)
-  // -------------------------
-  void _toggleHelpInline() {
-    setState(() => _helpInlineOpen = !_helpInlineOpen);
-  }
+  void _toggleHelpInline() => setState(() => _helpInlineOpen = !_helpInlineOpen);
 
   Widget _helpInlinePanel() {
     const base = TextStyle(fontSize: 16, height: 1.25, color: Color(0xFF111827));
@@ -221,12 +213,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // -------------------------
-  // ✅ INLINE Infos & licenses
-  // -------------------------
-  void _toggleInfoInline() {
-    setState(() => _infoInlineOpen = !_infoInlineOpen);
-  }
+  void _toggleInfoInline() => setState(() => _infoInlineOpen = !_infoInlineOpen);
 
   Widget _infoInlinePanel() {
     const String osValue = "Android";
@@ -253,27 +240,22 @@ class _SettingsPageState extends State<SettingsPage> {
           row("App Name", _appName),
           row("Version", _appVersion),
           row("Release date", _appReleaseDate),
-          row("IOS", osValue),
+          row("OS", osValue),
         ],
       ),
     );
   }
 
-  // -------------------------
-  // ✅ Invite a Friend sheet (start under header divider)
-  // -------------------------
   Future<void> _openInviteSheet() async {
     await _openRightSheetFromHeaderStop(
       title: "Select contact you want to send a invivation to:",
-      widthFactor: 0.75, // ✅ 3/4 sheet
-      body: _InviteContactsSheet(
-        messageBody: _inviteMessage,
-      ),
+      widthFactor: 0.75,
+      body: _InviteContactsSheet(messageBody: _inviteMessage),
     );
   }
 
   // -------------------------
-  // Avatar picker UI + logic
+  // Avatar picker UI + logic (writes to widget.profile)
   // -------------------------
   static const List<IconData> _availableAvatars = [
     Icons.face_retouching_natural_outlined,
@@ -298,10 +280,7 @@ class _SettingsPageState extends State<SettingsPage> {
       );
       if (picked == null || !mounted) return;
 
-      setState(() {
-        _profileFile = File(picked.path);
-        _selectedAvatarIcon = null;
-      });
+      widget.profile.setAvatarFile(File(picked.path));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -318,10 +297,7 @@ class _SettingsPageState extends State<SettingsPage> {
       );
       if (picked == null || !mounted) return;
 
-      setState(() {
-        _profileFile = File(picked.path);
-        _selectedAvatarIcon = null;
-      });
+      widget.profile.setAvatarFile(File(picked.path));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -334,56 +310,61 @@ class _SettingsPageState extends State<SettingsPage> {
     await _showAnchoredPopover<void>(
       anchorKey: _avatarEditKey,
       builder: (close, popConstraints) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _AvatarAction(
-                icon: Icons.photo_camera_outlined,
-                label: "Take a picture",
-                onTap: () async {
-                  close();
-                  await _pickFromCamera();
-                },
+        return AnimatedBuilder(
+          animation: widget.profile,
+          builder: (context, _) {
+            final hasAvatar =
+                widget.profile.avatarFile != null || widget.profile.avatarIcon != null;
+
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _AvatarAction(
+                    icon: Icons.photo_camera_outlined,
+                    label: "Take a picture",
+                    onTap: () async {
+                      close();
+                      await _pickFromCamera();
+                    },
+                  ),
+                  const SizedBox(height: 6),
+                  _AvatarAction(
+                    icon: Icons.photo_library_outlined,
+                    label: "Choose a picture",
+                    onTap: () async {
+                      close();
+                      await _pickFromGallery();
+                    },
+                  ),
+                  const SizedBox(height: 6),
+                  _AvatarAction(
+                    icon: Icons.person_outline,
+                    label: "Choose an avatar",
+                    onTap: () async {
+                      close();
+                      await Future.delayed(const Duration(milliseconds: 10));
+                      if (!mounted) return;
+                      await _showAvatarGridPopover();
+                    },
+                  ),
+                  if (hasAvatar) ...[
+                    const Divider(height: 18),
+                    _AvatarAction(
+                      icon: Icons.delete_outline,
+                      label: "Remove profile picture",
+                      danger: true,
+                      onTap: () {
+                        widget.profile.clearAvatar();
+                        close();
+                      },
+                    ),
+                  ],
+                ],
               ),
-              const SizedBox(height: 6),
-              _AvatarAction(
-                icon: Icons.photo_library_outlined,
-                label: "Choose a picture",
-                onTap: () async {
-                  close();
-                  await _pickFromGallery();
-                },
-              ),
-              const SizedBox(height: 6),
-              _AvatarAction(
-                icon: Icons.person_outline,
-                label: "Choose an avatar",
-                onTap: () async {
-                  close();
-                  await Future.delayed(const Duration(milliseconds: 10));
-                  if (!mounted) return;
-                  await _showAvatarGridPopover();
-                },
-              ),
-              if (_profileFile != null || _selectedAvatarIcon != null) ...[
-                const Divider(height: 18),
-                _AvatarAction(
-                  icon: Icons.delete_outline,
-                  label: "Remove profile picture",
-                  danger: true,
-                  onTap: () {
-                    setState(() {
-                      _profileFile = null;
-                      _selectedAvatarIcon = null;
-                    });
-                    close();
-                  },
-                ),
-              ],
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -424,10 +405,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     return InkWell(
                       borderRadius: BorderRadius.circular(14),
                       onTap: () {
-                        setState(() {
-                          _selectedAvatarIcon = icon;
-                          _profileFile = null;
-                        });
+                        widget.profile.setAvatarIcon(icon);
                         close();
                       },
                       child: Container(
@@ -453,11 +431,11 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // ✅ Inline name edit logic
+  // ✅ Inline name edit logic (reads/writes widget.profile.fullName)
   void _startEditName() {
     setState(() {
-      _nameDraftBeforeEdit = _fullName;
-      _nameController.text = _fullName;
+      _nameDraftBeforeEdit = widget.profile.fullName;
+      _nameController.text = widget.profile.fullName;
       _isEditingName = true;
       _nameEmptyError = false;
     });
@@ -480,8 +458,9 @@ class _SettingsPageState extends State<SettingsPage> {
       return;
     }
 
+    widget.profile.setFullName(_capitalizeFirst(v));
+
     setState(() {
-      _fullName = _capitalizeFirst(v);
       _isEditingName = false;
       _nameEmptyError = false;
     });
@@ -491,7 +470,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
   void _cancelNameEdit() {
     setState(() {
-      _fullName = _nameDraftBeforeEdit;
       _nameController.text = _nameDraftBeforeEdit;
       _isEditingName = false;
       _nameEmptyError = false;
@@ -652,7 +630,7 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  // -------- Email popover (anchored under crayon) --------
+  // -------- Email popover (writes to widget.profile.email) --------
   Future<void> _showChangeEmailDialog() async {
     await _showAnchoredPopover<void>(
       anchorKey: _emailEditKey,
@@ -661,14 +639,14 @@ class _SettingsPageState extends State<SettingsPage> {
           popoverTextStyle: _popoverTextStyle,
           fieldGap: _fieldGap,
           popoverDeco: _popoverDeco,
-          onSave: (newEmail) => setState(() => _email = newEmail),
+          onSave: (newEmail) => widget.profile.setEmail(newEmail),
           close: close,
         );
       },
     );
   }
 
-  // -------- Password popover (anchored under crayon) --------
+  // -------- Password popover (local demo password) --------
   Future<void> _showChangePasswordDialog() async {
     await _showAnchoredPopover<void>(
       anchorKey: _passwordEditKey,
@@ -689,270 +667,276 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     const nameStyle = TextStyle(fontSize: 18);
 
-    Widget avatarChild() {
-      if (_profileFile != null) return const SizedBox.shrink();
-      if (_selectedAvatarIcon != null) return Icon(_selectedAvatarIcon, size: 18);
-      return const Icon(Icons.person, size: 18);
-    }
+    return AnimatedBuilder(
+      animation: widget.profile,
+      builder: (context, _) {
+        Widget avatarChild() {
+          if (widget.profile.avatarFile != null) return const SizedBox.shrink();
+          if (widget.profile.avatarIcon != null) return Icon(widget.profile.avatarIcon, size: 18);
+          return const Icon(Icons.person, size: 18);
+        }
 
-    ImageProvider? avatarBgImage() {
-      if (_profileFile != null) return FileImage(_profileFile!);
-      return null;
-    }
+        ImageProvider? avatarBgImage() {
+          if (widget.profile.avatarFile != null) return FileImage(widget.profile.avatarFile!);
+          return null;
+        }
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      children: [
-        _Card(
-          child: Column(
-            children: [
-              Row(
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          children: [
+            _Card(
+              child: Column(
                 children: [
-                  InkWell(
-                    key: _avatarEditKey,
-                    onTap: _showAvatarPopover,
-                    borderRadius: BorderRadius.circular(999),
-                    child: CircleAvatar(
-                      radius: _avatarRadius,
-                      backgroundImage: avatarBgImage(),
-                      child: avatarChild(),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, c) {
-                        const double iconAreaEdit = (4 + 18 + 4) * 2 + 4;
-                        const double iconAreaView = (4 + 16 + 4);
-                        final double reserved = _isEditingName ? iconAreaEdit : iconAreaView;
-                        final double maxFieldWidth = (c.maxWidth - reserved).clamp(80.0, c.maxWidth);
+                  Row(
+                    children: [
+                      InkWell(
+                        key: _avatarEditKey,
+                        onTap: _showAvatarPopover,
+                        borderRadius: BorderRadius.circular(999),
+                        child: CircleAvatar(
+                          radius: _avatarRadius,
+                          backgroundImage: avatarBgImage(),
+                          child: avatarChild(),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: LayoutBuilder(
+                          builder: (context, c) {
+                            const double iconAreaEdit = (4 + 18 + 4) * 2 + 4;
+                            const double iconAreaView = (4 + 16 + 4);
+                            final double reserved = _isEditingName ? iconAreaEdit : iconAreaView;
+                            final double maxFieldWidth =
+                                (c.maxWidth - reserved).clamp(80.0, c.maxWidth);
 
-                        return AnimatedBuilder(
-                          animation: _nameController,
-                          builder: (context, _) {
-                            final String current =
-                                _isEditingName ? _nameController.text : _capitalizeFirst(_fullName);
+                            return AnimatedBuilder(
+                              animation: _nameController,
+                              builder: (context, _) {
+                                final String current =
+                                    _isEditingName ? _nameController.text : _capitalizeFirst(widget.profile.fullName);
 
-                            final double fieldWidth = _measureTextWidth(
-                              text: current,
-                              style: nameStyle,
-                              maxWidth: maxFieldWidth,
-                              minWidth: 70,
-                              extraPadding: 6,
-                            );
+                                final double fieldWidth = _measureTextWidth(
+                                  text: current,
+                                  style: nameStyle,
+                                  maxWidth: maxFieldWidth,
+                                  minWidth: 70,
+                                  extraPadding: 6,
+                                );
 
-                            return Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SizedBox(
-                                  width: fieldWidth,
-                                  child: _isEditingName
-                                      ? TextField(
-                                          controller: _nameController,
-                                          focusNode: _nameFocus,
-                                          autofocus: true,
-                                          textCapitalization: TextCapitalization.words,
-                                          style: nameStyle,
-                                          maxLines: 1,
-                                          decoration: const InputDecoration(
-                                            isDense: true,
-                                            border: InputBorder.none,
-                                            contentPadding: EdgeInsets.zero,
-                                          ),
-                                          onChanged: (_) => setState(() {
-                                            _nameEmptyError = !_canSaveName;
-                                          }),
-                                          onSubmitted: (_) => _saveName(),
-                                        )
-                                      : Text(
-                                          current,
-                                          style: nameStyle,
-                                          overflow: TextOverflow.ellipsis,
-                                          maxLines: 1,
+                                return Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SizedBox(
+                                      width: fieldWidth,
+                                      child: _isEditingName
+                                          ? TextField(
+                                              controller: _nameController,
+                                              focusNode: _nameFocus,
+                                              autofocus: true,
+                                              textCapitalization: TextCapitalization.words,
+                                              style: nameStyle,
+                                              maxLines: 1,
+                                              decoration: const InputDecoration(
+                                                isDense: true,
+                                                border: InputBorder.none,
+                                                contentPadding: EdgeInsets.zero,
+                                              ),
+                                              onChanged: (_) => setState(() {
+                                                _nameEmptyError = !_canSaveName;
+                                              }),
+                                              onSubmitted: (_) => _saveName(),
+                                            )
+                                          : Text(
+                                              current,
+                                              style: nameStyle,
+                                              overflow: TextOverflow.ellipsis,
+                                              maxLines: 1,
+                                            ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    if (!_isEditingName)
+                                      InkWell(
+                                        onTap: _startEditName,
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: const Padding(
+                                          padding: EdgeInsets.all(4),
+                                          child: Icon(Icons.edit_outlined, size: 16),
                                         ),
-                                ),
-                                const SizedBox(width: 6),
-                                if (!_isEditingName)
-                                  InkWell(
-                                    onTap: _startEditName,
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: const Padding(
-                                      padding: EdgeInsets.all(4),
-                                      child: Icon(Icons.edit_outlined, size: 16),
-                                    ),
-                                  )
-                                else ...[
-                                  InkWell(
-                                    onTap: _canSaveName ? _saveName : null,
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(4),
-                                      child: Icon(
-                                        Icons.check,
-                                        size: 18,
-                                        color: _canSaveName ? null : const Color(0xFF9CA3AF),
+                                      )
+                                    else ...[
+                                      InkWell(
+                                        onTap: _canSaveName ? _saveName : null,
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(4),
+                                          child: Icon(
+                                            Icons.check,
+                                            size: 18,
+                                            color: _canSaveName ? null : const Color(0xFF9CA3AF),
+                                          ),
+                                        ),
                                       ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  InkWell(
-                                    onTap: _cancelNameEdit,
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: const Padding(
-                                      padding: EdgeInsets.all(4),
-                                      child: Icon(Icons.close, size: 18),
-                                    ),
-                                  ),
-                                ],
-                              ],
+                                      const SizedBox(width: 4),
+                                      InkWell(
+                                        onTap: _cancelNameEdit,
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: const Padding(
+                                          padding: EdgeInsets.all(4),
+                                          child: Icon(Icons.close, size: 18),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                );
+                              },
                             );
                           },
-                        );
-                      },
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_isEditingName && _nameEmptyError) ...[
+                    const SizedBox(height: 4),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Padding(
+                        padding: EdgeInsets.only(left: (_avatarRadius * 2) + 12),
+                        child: Text(
+                          "Name cannot be blank.",
+                          style: TextStyle(color: Color(0xFFEF4444), fontSize: 12),
+                        ),
+                      ),
                     ),
+                  ],
+                  const SizedBox(height: 12),
+                  const Divider(height: 1, thickness: 1, color: _dividerColor),
+                  const SizedBox(height: 8),
+                  _KeyValueEditRowTight(
+                    leftIndent: _nameStartIndent,
+                    label: "Email",
+                    value: widget.profile.email,
+                    valueGrey: true,
+                    onEdit: _showChangeEmailDialog,
+                    editKey: _emailEditKey,
+                  ),
+                  const SizedBox(height: 6),
+                  _KeyValueEditRowTight(
+                    leftIndent: _nameStartIndent,
+                    label: "Password",
+                    value: "••••••••••",
+                    valueGrey: true,
+                    onEdit: _showChangePasswordDialog,
+                    editKey: _passwordEditKey,
                   ),
                 ],
               ),
-              if (_isEditingName && _nameEmptyError) ...[
-                const SizedBox(height: 4),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Padding(
-                    padding: EdgeInsets.only(left: (_avatarRadius * 2) + 12),
-                    child: Text(
-                      "Name cannot be blank.",
-                      style: TextStyle(color: Color(0xFFEF4444), fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+
+            _Card(
+              child: Column(
+                children: [
+                  _SimpleTile(
+                    icon: Icons.wallpaper_outlined,
+                    title: "Background",
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Background settings (next step)")),
+                      );
+                    },
+                  ),
+                  const Divider(height: 1, thickness: 1, color: _dividerColor, indent: _tileDividerIndent),
+                  _SimpleTile(
+                    icon: Icons.color_lens_outlined,
+                    title: "Theme color",
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Theme color (next step)")),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            _Card(
+              child: Column(
+                children: [
+                  _SimpleTile(
+                    icon: Icons.shield_outlined,
+                    title: "Privacy notice for kids",
+                    onTap: _openPrivacyKidsSheet,
+                  ),
+                  const Divider(height: 1, thickness: 1, color: _dividerColor, indent: _tileDividerIndent),
+                  _SimpleTile(
+                    icon: Icons.shield_outlined,
+                    title: "Privacy notice for adults",
+                    onTap: _openPrivacyAdultsSheet,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            _Card(
+              child: Column(
+                children: [
+                  _SimpleTile(
+                    icon: Icons.help_outline,
+                    title: "Help & feedback",
+                    onTap: _toggleHelpInline,
+                    arrowKey: _helpArrowKey,
+                    trailingOverride: AnimatedRotation(
+                      turns: _helpInlineOpen ? 0.25 : 0.0,
+                      duration: const Duration(milliseconds: 160),
+                      curve: Curves.easeOut,
+                      child: const Icon(Icons.keyboard_arrow_right, size: 16),
                     ),
                   ),
-                ),
-              ],
-              const SizedBox(height: 12),
-              const Divider(height: 1, thickness: 1, color: _dividerColor),
-              const SizedBox(height: 8),
-              _KeyValueEditRowTight(
-                leftIndent: _nameStartIndent,
-                label: "Email",
-                value: _email,
-                valueGrey: true,
-                onEdit: _showChangeEmailDialog,
-                editKey: _emailEditKey,
+                  if (_helpInlineOpen) ...[
+                    const Divider(height: 1, thickness: 1, color: _dividerColor, indent: _tileDividerIndent),
+                    _helpInlinePanel(),
+                  ],
+                  const Divider(height: 1, thickness: 1, color: _dividerColor, indent: _tileDividerIndent),
+                  _SimpleTile(
+                    icon: Icons.info_outline,
+                    title: "Infos & licenses",
+                    onTap: _toggleInfoInline,
+                    arrowKey: _infoArrowKey,
+                    trailingOverride: AnimatedRotation(
+                      turns: _infoInlineOpen ? 0.25 : 0.0,
+                      duration: const Duration(milliseconds: 160),
+                      curve: Curves.easeOut,
+                      child: const Icon(Icons.keyboard_arrow_right, size: 16),
+                    ),
+                  ),
+                  if (_infoInlineOpen) ...[
+                    const Divider(height: 1, thickness: 1, color: _dividerColor, indent: _tileDividerIndent),
+                    _infoInlinePanel(),
+                  ],
+                ],
               ),
-              const SizedBox(height: 6),
-              _KeyValueEditRowTight(
-                leftIndent: _nameStartIndent,
-                label: "Password",
-                value: "••••••••••",
-                valueGrey: true,
-                onEdit: _showChangePasswordDialog,
-                editKey: _passwordEditKey,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
+            ),
+            const SizedBox(height: 12),
 
-        _Card(
-          child: Column(
-            children: [
-              _SimpleTile(
-                icon: Icons.wallpaper_outlined,
-                title: "Background",
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Background settings (next step)")),
-                  );
-                },
+            _Card(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              child: Column(
+                children: [
+                  _SimpleTile(
+                    icon: Icons.share_outlined,
+                    title: "Invite a friend",
+                    compact: true,
+                    onTap: _openInviteSheet,
+                    arrowKey: _inviteArrowKey,
+                  ),
+                ],
               ),
-              const Divider(height: 1, thickness: 1, color: _dividerColor, indent: _tileDividerIndent),
-              _SimpleTile(
-                icon: Icons.color_lens_outlined,
-                title: "Theme color",
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Theme color (next step)")),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        _Card(
-          child: Column(
-            children: [
-              _SimpleTile(
-                icon: Icons.shield_outlined,
-                title: "Privacy notice for kids",
-                onTap: _openPrivacyKidsSheet,
-              ),
-              const Divider(height: 1, thickness: 1, color: _dividerColor, indent: _tileDividerIndent),
-              _SimpleTile(
-                icon: Icons.shield_outlined,
-                title: "Privacy notice for adults",
-                onTap: _openPrivacyAdultsSheet,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        _Card(
-          child: Column(
-            children: [
-              _SimpleTile(
-                icon: Icons.help_outline,
-                title: "Help & feedback",
-                onTap: _toggleHelpInline,
-                arrowKey: _helpArrowKey,
-                trailingOverride: AnimatedRotation(
-                  turns: _helpInlineOpen ? 0.25 : 0.0,
-                  duration: const Duration(milliseconds: 160),
-                  curve: Curves.easeOut,
-                  child: const Icon(Icons.keyboard_arrow_right, size: 16),
-                ),
-              ),
-              if (_helpInlineOpen) ...[
-                const Divider(height: 1, thickness: 1, color: _dividerColor, indent: _tileDividerIndent),
-                _helpInlinePanel(),
-              ],
-              const Divider(height: 1, thickness: 1, color: _dividerColor, indent: _tileDividerIndent),
-              _SimpleTile(
-                icon: Icons.info_outline,
-                title: "Infos & licenses",
-                onTap: _toggleInfoInline,
-                arrowKey: _infoArrowKey,
-                trailingOverride: AnimatedRotation(
-                  turns: _infoInlineOpen ? 0.25 : 0.0,
-                  duration: const Duration(milliseconds: 160),
-                  curve: Curves.easeOut,
-                  child: const Icon(Icons.keyboard_arrow_right, size: 16),
-                ),
-              ),
-              if (_infoInlineOpen) ...[
-                const Divider(height: 1, thickness: 1, color: _dividerColor, indent: _tileDividerIndent),
-                _infoInlinePanel(),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        _Card(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          child: Column(
-            children: [
-              _SimpleTile(
-                icon: Icons.share_outlined,
-                title: "Invite a friend",
-                compact: true,
-                onTap: _openInviteSheet,
-                arrowKey: _inviteArrowKey,
-              ),
-            ],
-          ),
-        ),
-      ],
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -1107,7 +1091,6 @@ class _InviteContactsSheetState extends State<_InviteContactsSheet> {
                 onTap: () async {
                   await _openSms(phone: c.phone, body: widget.messageBody);
                   if (!mounted) return;
-                  // ✅ after "sending", stay on list (no navigation)
                   FocusManager.instance.primaryFocus?.unfocus();
                 },
                 child: Padding(
@@ -1135,9 +1118,6 @@ class _InviteContactsSheetState extends State<_InviteContactsSheet> {
                           ],
                         ),
                       ),
-
-                      // ✅ removed chevron/arrow per your request
-                      // (no trailing widget)
                     ],
                   ),
                 ),
@@ -1537,7 +1517,7 @@ class _AvatarAction extends StatelessWidget {
   }
 }
 
-/// ✅ Email popover widget (controllers live here)
+/// ✅ Email popover widget
 class _EmailPopover extends StatefulWidget {
   final TextStyle popoverTextStyle;
   final double fieldGap;
@@ -1648,7 +1628,7 @@ class _EmailPopoverState extends State<_EmailPopover> {
   }
 }
 
-/// ✅ Password popover widget (controllers live here)
+/// ✅ Password popover widget
 class _PasswordPopover extends StatefulWidget {
   final TextStyle popoverTextStyle;
   final double fieldGap;
