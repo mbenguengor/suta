@@ -515,7 +515,7 @@ class _NotificationTile extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Expanded(
-                        flex: 18,
+                        flex: 3,
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
@@ -551,7 +551,7 @@ class _NotificationTile extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        flex: 20,
+                        flex: 1,
                         child: Align(
                           alignment: Alignment.centerLeft,
                           child: cell(notification.pinName),
@@ -559,7 +559,7 @@ class _NotificationTile extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        flex: 18,
+                        flex: 2,
                         child: Align(
                           alignment: Alignment.centerLeft,
                           child: cell(eventText),
@@ -567,7 +567,7 @@ class _NotificationTile extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        flex: 18,
+                        flex: 2,
                         child: Align(
                           alignment: Alignment.centerLeft,
                           child: cell(actionText),
@@ -575,7 +575,7 @@ class _NotificationTile extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        flex: 26,
+                        flex: 2,
                         child: Align(
                           alignment: Alignment.centerRight,
                           child: cell(dateText, align: TextAlign.right),
