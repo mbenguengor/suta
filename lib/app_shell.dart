@@ -59,7 +59,7 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
       ),
       Person(
         id: "p2",
-        name: "Awa",
+        name: "Fama",
         pins: [
           PinItem(id: "pin3", name: "Lunchbox", synced: false, inRange: true),
         ],
