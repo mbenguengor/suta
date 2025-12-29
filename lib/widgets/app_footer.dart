@@ -90,9 +90,34 @@ class _NavItem extends StatelessWidget {
     final showBadge = unreadCount > 0;
     final badgeText = unreadCount > 99 ? "99+" : unreadCount.toString();
 
+    // ✅ Only allow taps inside this centered "hit box"
+    // Adjust if you want tighter/looser.
+    const double hitWidth = 32;  // includes icon + label area
+    const double hitHeight = 32; // includes indicator + icon + label
+
     return Expanded(
       child: InkWell(
-        onTap: onTap,
+        // ⛔ Don't use onTap (it would trigger anywhere in Expanded)
+        onTap: null,
+        onTapDown: (details) {
+          // Tap position inside this Expanded cell
+          final local = details.localPosition;
+
+          // Expanded cell size (from RenderBox)
+          final box = context.findRenderObject() as RenderBox?;
+          if (box == null) return;
+          final size = box.size;
+
+          // Centered hit-box rectangle
+          final left = (size.width - hitWidth) / 2;
+          final top = (size.height - hitHeight) / 2;
+          final rect = Rect.fromLTWH(left, top, hitWidth, hitHeight);
+
+          // Only trigger when tap is inside the hit box
+          if (rect.contains(local)) {
+            onTap();
+          }
+        },
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 2),
           child: Column(
