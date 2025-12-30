@@ -15,6 +15,15 @@ class PinItem {
   // ✅ when the current status was set
   DateTime lastStatusOn;
 
+  // -------------------------------------------------------
+  // ✅ NEW: Range + Distance
+  // -------------------------------------------------------
+  // Range in feet (nullable in model; UI uses effectiveRangeFeet)
+  int? rangeFeet;
+
+  // Distance estimate in feet (nullable until BLE provides it)
+  double? distanceFeet;
+
   PinItem({
     required this.id,
     required this.name,
@@ -22,7 +31,19 @@ class PinItem {
     this.synced = true,
     this.inRange = true,
     DateTime? lastStatusOn,
+    this.rangeFeet,
+    this.distanceFeet,
   }) : lastStatusOn = lastStatusOn ?? DateTime.now();
+
+  // ✅ If Range is empty → treat as “1” feet
+  int get effectiveRangeFeet {
+    final r = rangeFeet;
+    if (r == null || r <= 0) return 1;
+    return r;
+  }
+
+  // ✅ If distance is missing, treat as 0 ft (safe default until BLE)
+  double get effectiveDistanceFeet => distanceFeet ?? 0.0;
 }
 
 class Person {
