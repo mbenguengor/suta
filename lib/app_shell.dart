@@ -1,6 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+
 import 'app_globals.dart';
+import 'local_storage.dart';
 import 'models.dart';
+
 import 'widgets/app_footer.dart';
 import 'widgets/app_header.dart';
 
@@ -21,10 +25,17 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
   bool notificationsEnabled = true;
 
   // ✅ Shared user profile (name/email/avatar) used by Header + Settings
-  late final UserProfile _profile;
+  late UserProfile _profile;
 
   // ✅ People is mutable now (we can save edits / deletions)
   late List<Person> people;
+
+  // ✅ Global mains list (for StatusPage "Sort by: Main")
+  late List<MainGroup> mains;
+
+  // ✅ Loading + saving guards
+  bool _loading = true;
+  bool _savingPeople = false;
 
   // ✅ Notifications state
   final List<AppNotification> _notifications = [];
@@ -47,43 +58,180 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
   void initState() {
     super.initState();
 
-    // Temporary local data
-    people = [
-      Person(
-        id: "p1",
-        name: "Fatou",
-        pins: [
-          PinItem(id: "pin1", name: "iPad", synced: true, inRange: true),
-          PinItem(id: "pin2", name: "Keys", synced: true, inRange: false),
-        ],
-      ),
-      Person(
-        id: "p2",
-        name: "Fama",
-        pins: [
-          PinItem(id: "pin3", name: "Lunchbox", synced: false, inRange: true),
-        ],
-      ),
-    ];
-
-    // Normalize person names (demo)
-    for (final p in people) {
-      p.name = _capitalizeFirst(p.name);
-    }
-
-    // ✅ Initialize shared profile (demo defaults)
-    _profile = UserProfile(
-      fullName: "Ngor",
-      email: "user@email.com",
-    );
-
-    _initOrRebuildPeopleController(keepSelectedIndex: true);
-
     _panelCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 220),
       reverseDuration: const Duration(milliseconds: 180),
     );
+
+    _bootstrap();
+  }
+
+  // =======================================================
+  // ✅ BOOTSTRAP: Load saved state or fallback to demo
+  // =======================================================
+
+  Future<void> _bootstrap() async {
+    // Try load saved
+    final loadedProfile = await LocalStorage.loadProfile();
+    final loadedPeople = await LocalStorage.loadPeople();
+
+    if (loadedProfile != null) {
+      _profile = loadedProfile;
+    } else {
+      _profile = UserProfile(fullName: "Ngor", email: "user@email.com");
+      // Save initial profile once
+      await LocalStorage.saveProfile(_profile);
+    }
+
+    if (loadedPeople != null && loadedPeople.isNotEmpty) {
+      people = loadedPeople;
+    } else {
+      _initDemoData();
+      // Save initial demo people once
+      await LocalStorage.savePeople(people);
+    }
+
+    // Keep derived maps consistent
+    _rebuildDerivedData();
+
+    // Auto-save profile when it changes
+    _profile.addListener(() {
+      LocalStorage.saveProfile(_profile);
+    });
+
+    _initOrRebuildPeopleController(keepSelectedIndex: true);
+
+    if (mounted) setState(() => _loading = false);
+  }
+
+  void _initDemoData() {
+    final fatouPins = <PinItem>[
+      PinItem(id: "pin1", name: "iPad", synced: true, inRange: true),
+      PinItem(id: "pin2", name: "Keys", synced: true, inRange: false),
+    ];
+
+    final famaPins = <PinItem>[
+      PinItem(id: "pin3", name: "Lunchbox", synced: false, inRange: true),
+    ];
+
+    final fatouMains = <MainGroup>[
+      MainGroup(
+        id: "m1",
+        name: "School",
+        icon: Icons.school_outlined,
+        pinIds: ["pin1", "pin2"],
+      ),
+      MainGroup(
+        id: "m2",
+        name: "Travel",
+        icon: Icons.flight_takeoff_outlined,
+        pinIds: [],
+      ),
+    ];
+
+    final famaMains = <MainGroup>[
+      MainGroup(
+        id: "m3",
+        name: "School",
+        icon: Icons.school_outlined,
+        pinIds: ["pin3"],
+      ),
+      MainGroup(
+        id: "m4",
+        name: "Travel",
+        icon: Icons.flight_takeoff_outlined,
+        pinIds: [],
+      ),
+    ];
+
+    people = [
+      Person(
+        id: "p1",
+        name: "Fatou",
+        pins: fatouPins,
+        mains: fatouMains,
+        itemsByMain: _buildItemsByMain(fatouPins, fatouMains),
+      ),
+      Person(
+        id: "p2",
+        name: "Fama",
+        pins: famaPins,
+        mains: famaMains,
+        itemsByMain: _buildItemsByMain(famaPins, famaMains),
+      ),
+    ];
+
+    for (final p in people) {
+      p.name = _capitalizeFirst(p.name);
+    }
+  }
+
+  void _rebuildDerivedData() {
+    // Ensure itemsByMain is consistent with mains.pinIds
+    for (final p in people) {
+      p.rebuildItemsByMain();
+    }
+    mains = _buildGlobalMainsFromPeople(people);
+  }
+
+  Future<void> _savePeopleNow() async {
+    if (_savingPeople) return;
+    _savingPeople = true;
+    try {
+      _rebuildDerivedData();
+      await LocalStorage.savePeople(people);
+    } finally {
+      _savingPeople = false;
+    }
+  }
+
+  // ✅ Builds a map mainId -> list of PinItem references based on pinIds
+  static Map<String, List<PinItem>> _buildItemsByMain(
+    List<PinItem> pins,
+    List<MainGroup> mains,
+  ) {
+    final byId = <String, PinItem>{for (final p in pins) p.id: p};
+
+    final map = <String, List<PinItem>>{};
+    for (final m in mains) {
+      final list = <PinItem>[];
+      for (final pid in m.pinIds) {
+        final pin = byId[pid];
+        if (pin != null) list.add(pin);
+      }
+      map[m.id] = list;
+    }
+    return map;
+  }
+
+  // ✅ Global mains list (merged by Main name + icon), combining pinIds across people
+  static List<MainGroup> _buildGlobalMainsFromPeople(List<Person> people) {
+    final Map<String, MainGroup> merged = {};
+
+    for (final person in people) {
+      for (final m in person.mains) {
+        final key = "${m.name.toLowerCase()}_${m.icon.codePoint}";
+        merged.putIfAbsent(
+          key,
+          () => MainGroup(
+            id: "gm_${m.name.toLowerCase()}_${m.icon.codePoint}",
+            name: m.name,
+            icon: m.icon,
+            pinIds: [],
+          ),
+        );
+        merged[key]!.pinIds.addAll(m.pinIds);
+      }
+    }
+
+    // Remove duplicates in pinIds
+    for (final g in merged.values) {
+      final seen = <String>{};
+      g.pinIds.removeWhere((id) => !seen.add(id));
+    }
+
+    return merged.values.toList();
   }
 
   void _initOrRebuildPeopleController({required bool keepSelectedIndex}) {
@@ -98,7 +246,6 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
     _basePage = len * 1000;
     final initialVirtual = _basePage + selectedPersonIndex;
 
-    // dispose old controller if any
     try {
       _peopleController.dispose();
     } catch (_) {}
@@ -141,7 +288,8 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
     });
 
     if (notificationsEnabled) {
-      final msg = "${person.name} • ${pin.name} • ${notificationEventLabel(event)}";
+      final msg =
+          "${person.name} • ${pin.name} • ${notificationEventLabel(event)}";
       scaffoldMessengerKey.currentState?.showSnackBar(
         SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
       );
@@ -270,16 +418,23 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
 
     setState(() {
       final newId = "p${people.length + 1}";
-      people.add(Person(id: newId, name: normalized, pins: []));
+      people.add(
+        Person(
+          id: newId,
+          name: normalized,
+          pins: [],
+          mains: [],
+          itemsByMain: {},
+        ),
+      );
     });
 
-    // ✅ rebuild controller because length changed
     _initOrRebuildPeopleController(keepSelectedIndex: true);
-
     _goToPerson(people.length - 1);
+
+    _savePeopleNow();
   }
 
-  // ✅ Called by SettingsPage "Manage person" SAVE
   void _applyPeopleFromSettings(List<Person> updated) {
     setState(() {
       people = updated;
@@ -290,8 +445,8 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
       }
     });
 
-    // ✅ rebuild controller because order/length might change
     _initOrRebuildPeopleController(keepSelectedIndex: true);
+    _savePeopleNow();
   }
 
   Future<void> _setTab(int i) async {
@@ -330,6 +485,8 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
       pin.inRange = !pin.inRange;
     });
 
+    _savePeopleNow();
+
     if (!pin.synced) {
       _emitNotification(
         person: person,
@@ -349,6 +506,12 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final pages = [
       PageView.builder(
         controller: _peopleController,
@@ -370,18 +533,21 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
                 final pin = person.pins.firstWhere((p) => p.id == pinId);
                 pin.name = newName;
               });
+              _savePeopleNow();
             },
             onToggleMute: (pinId) {
               setState(() {
                 final pin = person.pins.firstWhere((p) => p.id == pinId);
                 pin.muted = !pin.muted;
               });
+              _savePeopleNow();
             },
             onSync: (pinId) {
               setState(() {
                 final pin = person.pins.firstWhere((p) => p.id == pinId);
                 pin.synced = true;
               });
+              _savePeopleNow();
             },
             onDeletePin: (pinId) {
               final pin = person.pins.firstWhere((p) => p.id == pinId);
@@ -389,6 +555,8 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
               setState(() {
                 person.pins.removeWhere((p) => p.id == pinId);
               });
+
+              _savePeopleNow();
 
               _emitNotification(
                 person: person,
@@ -402,6 +570,7 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
       ),
       StatusPage(
         people: people,
+        mains: mains,
         onRefreshPin: _onRefreshPinFromStatus,
       ),
       NotificationsPage(
@@ -410,8 +579,6 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
         onDelete: _deleteNotification,
         onSetUnread: _setNotificationUnread,
       ),
-
-      // ✅ Settings now uses shared profile + manage people SAVE
       SettingsPage(
         profile: _profile,
         people: people,
@@ -432,8 +599,6 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
                 onToggleNotifications: () =>
                     setState(() => notificationsEnabled = !notificationsEnabled),
                 onOpenProfile: () => _setTab(3),
-
-                // ✅ Only Home supports switching
                 onNextPerson: tabIndex == 0 ? _nextPerson : null,
                 onPrevPerson: tabIndex == 0 ? _prevPerson : null,
                 onTapPerson: _openPeoplePanel,
@@ -648,7 +813,11 @@ class _PeopleSidePanelState extends State<_PeopleSidePanel> {
     } else {
       child = Text(
         _initials(p.name),
-        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
       );
     }
 
@@ -669,8 +838,10 @@ class _PeopleSidePanelState extends State<_PeopleSidePanel> {
     final size = MediaQuery.of(context).size;
     final panelWidth = size.width * 0.66;
 
-    final slide = CurvedAnimation(parent: widget.controller, curve: Curves.easeOut);
-    final fade = CurvedAnimation(parent: widget.controller, curve: Curves.easeOut);
+    final slide =
+        CurvedAnimation(parent: widget.controller, curve: Curves.easeOut);
+    final fade =
+        CurvedAnimation(parent: widget.controller, curve: Curves.easeOut);
 
     return AnimatedBuilder(
       animation: widget.controller,
@@ -729,28 +900,39 @@ class _PeopleSidePanelState extends State<_PeopleSidePanel> {
                               const SizedBox(height: 14),
                               Expanded(
                                 child: ListView(
-                                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 0),
+                                  padding:
+                                      const EdgeInsets.fromLTRB(14, 0, 14, 0),
                                   children: [
-                                    for (int i = 0; i < widget.people.length; i++) ...[
+                                    for (int i = 0;
+                                        i < widget.people.length;
+                                        i++) ...[
                                       _PersonRow(
                                         person: widget.people[i],
-                                        selected: i == widget.selectedPersonIndex,
+                                        selected:
+                                            i == widget.selectedPersonIndex,
                                         avatarBuilder: _sideAvatar,
                                         onTap: () => widget.onSelectPerson(i),
                                       ),
                                       const SizedBox(height: 4),
                                     ],
                                     ListTile(
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 6),
-                                      leading: const Icon(Icons.person_add_alt_1_outlined),
+                                      contentPadding: const EdgeInsets.symmetric(
+                                          horizontal: 6),
+                                      leading: const Icon(
+                                          Icons.person_add_alt_1_outlined),
                                       title: Text("Add person", key: _addTitleKey),
                                       onTap: _openAddPopup,
                                     ),
                                     const SizedBox(height: 4),
-                                    const Divider(height: 1, thickness: 1, color: Color(0xFFE6E8EF)),
+                                    const Divider(
+                                      height: 1,
+                                      thickness: 1,
+                                      color: Color(0xFFE6E8EF),
+                                    ),
                                     const SizedBox(height: 4),
                                     ListTile(
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 6),
+                                      contentPadding: const EdgeInsets.symmetric(
+                                          horizontal: 6),
                                       leading: const Icon(Icons.logout),
                                       title: const Text("Log out"),
                                       onTap: widget.onLogout,
@@ -764,7 +946,8 @@ class _PeopleSidePanelState extends State<_PeopleSidePanel> {
                             Positioned.fill(
                               child: GestureDetector(
                                 onTap: _closeAddPopup,
-                                child: Container(color: Colors.black.withOpacity(0.15)),
+                                child: Container(
+                                    color: Colors.black.withOpacity(0.15)),
                               ),
                             ),
                             if (_popupTop != null && _popupLeft != null)
@@ -781,18 +964,21 @@ class _PeopleSidePanelState extends State<_PeopleSidePanel> {
                                     padding: const EdgeInsets.all(14),
                                     child: Column(
                                       mainAxisSize: MainAxisSize.min,
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         TextField(
                                           controller: _nameCtrl,
                                           autofocus: true,
                                           textInputAction: TextInputAction.done,
                                           onSubmitted: (_) => _submitAdd(),
-                                          decoration: const InputDecoration(hintText: "Person name"),
+                                          decoration: const InputDecoration(
+                                              hintText: "Person name"),
                                         ),
                                         const SizedBox(height: 12),
                                         Row(
-                                          mainAxisAlignment: MainAxisAlignment.end,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.end,
                                           children: [
                                             TextButton(
                                               onPressed: _closeAddPopup,
@@ -889,7 +1075,8 @@ String _capitalizeFirst(String s) {
 }
 
 String _initials(String name) {
-  final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  final parts =
+      name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
   if (parts.isEmpty) return "?";
   final first = parts.first;
   final last = parts.length > 1 ? parts.last : "";

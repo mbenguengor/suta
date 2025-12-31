@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:suta/models.dart';
 
-enum SortBy { person, status }
+enum SortBy { person, main, status }
 enum ItemStatus { inRange, outOfRange, notSynced }
 
 enum _TableOrderBy { person, item, status, statusAt }
 
 class StatusPage extends StatefulWidget {
   final List<Person> people;
+
+  /// ✅ NEW: mains (each main has pinIds linked by bluetooth)
+  final List<MainGroup> mains;
 
   /// Optional: if you later want AppShell to refresh a pin status.
   /// For now this will just update lastStatusOn + toggle inRange for demo.
@@ -16,6 +19,7 @@ class StatusPage extends StatefulWidget {
   const StatusPage({
     super.key,
     required this.people,
+    required this.mains,
     this.onRefreshPin,
   });
 
@@ -27,13 +31,13 @@ class _StatusPageState extends State<StatusPage> {
   SortBy _sortBy = SortBy.person;
 
   final GlobalKey _sortArrowKey = GlobalKey();
-  static const double _sortValueWidth = 52;
+  static const double _sortValueWidth = 60;
 
   final ScrollController _scrollCtrl = ScrollController();
 
   // ✅ table sorting (when Sort by: Status)
   _TableOrderBy _tableOrderBy = _TableOrderBy.status;
-  bool _tableAsc = true; // toggles each time user clicks the same column
+  bool _tableAsc = true;
 
   // ✅ prevent stacking multiple popovers
   bool _popoverOpen = false;
@@ -47,9 +51,6 @@ class _StatusPageState extends State<StatusPage> {
   // ---------------- Status helpers ----------------
 
   ItemStatus _statusFor(PinItem pin) {
-    // Requires your PinItem to have:
-    // bool inRange;
-    // DateTime lastStatusOn;
     if (!pin.synced) return ItemStatus.notSynced;
     if (pin.inRange) return ItemStatus.inRange;
     return ItemStatus.outOfRange;
@@ -81,6 +82,18 @@ class _StatusPageState extends State<StatusPage> {
   String _formatDateTime(DateTime dt) {
     String two(int n) => n.toString().padLeft(2, '0');
     return "${dt.year}-${two(dt.month)}-${two(dt.day)}  ${two(dt.hour)}:${two(dt.minute)}";
+  }
+
+  // ---------------- Lookups (pinId -> owner) ----------------
+
+  Map<String, ({Person person, PinItem pin})> _pinLookup() {
+    final map = <String, ({Person person, PinItem pin})>{};
+    for (final p in widget.people) {
+      for (final pin in p.pins) {
+        map[pin.id] = (person: p, pin: pin);
+      }
+    }
+    return map;
   }
 
   // ---------------- Anchored item popover (under tapped item) ----------------
@@ -133,7 +146,6 @@ class _StatusPageState extends State<StatusPage> {
                     ancestor: overlayBox,
                   );
 
-                  // ✅ constrain, but allow shrink-to-fit inside (IntrinsicWidth)
                   final double maxPopoverW =
                       (240.0).clamp(160.0, screenW - (margin * 2)).toDouble();
 
@@ -173,7 +185,7 @@ class _StatusPageState extends State<StatusPage> {
                           left: left,
                           top: top,
                           child: GestureDetector(
-                            onTap: () {}, // prevent close when tapping inside
+                            onTap: () {},
                             child: Material(
                               color: Colors.white,
                               elevation: 12,
@@ -202,8 +214,6 @@ class _StatusPageState extends State<StatusPage> {
                                             ),
                                           ),
                                           const SizedBox(height: 8),
-
-                                          // ✅ Status row: keep dot close
                                           Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
@@ -225,10 +235,7 @@ class _StatusPageState extends State<StatusPage> {
                                               ),
                                             ],
                                           ),
-
                                           const SizedBox(height: 8),
-
-                                          // ✅ Status at row: keep value close to label
                                           Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
@@ -290,7 +297,8 @@ class _StatusPageState extends State<StatusPage> {
       }
     }
 
-    if (_sortBy == SortBy.person) {
+    // Person view handles its own grouping
+    if (_sortBy == SortBy.person || _sortBy == SortBy.main) {
       rows.sort((a, b) {
         final pn =
             a.person.name.toLowerCase().compareTo(b.person.name.toLowerCase());
@@ -300,6 +308,7 @@ class _StatusPageState extends State<StatusPage> {
       return rows;
     }
 
+    // Status table sort
     rows.sort((a, b) {
       int cmp;
 
@@ -325,7 +334,7 @@ class _StatusPageState extends State<StatusPage> {
           break;
 
         case _TableOrderBy.statusAt:
-          cmp = b.pin.lastStatusOn.compareTo(a.pin.lastStatusOn); // most recent first
+          cmp = b.pin.lastStatusOn.compareTo(a.pin.lastStatusOn);
           if (cmp != 0) break;
           cmp = a.person.name.toLowerCase().compareTo(b.person.name.toLowerCase());
           if (cmp != 0) break;
@@ -339,7 +348,16 @@ class _StatusPageState extends State<StatusPage> {
     return rows;
   }
 
-  String _sortLabel(SortBy s) => s == SortBy.person ? "Person" : "Status";
+  String _sortLabel(SortBy s) {
+    switch (s) {
+      case SortBy.person:
+        return "Person";
+      case SortBy.main:
+        return "Main";
+      case SortBy.status:
+        return "Status";
+    }
+  }
 
   Future<void> _openSortMenu() async {
     final ctx = _sortArrowKey.currentContext;
@@ -363,32 +381,28 @@ class _StatusPageState extends State<StatusPage> {
       elevation: 8,
       color: Colors.white,
       surfaceTintColor: Colors.white,
-      constraints: const BoxConstraints(
-        minWidth: 72,
-        maxWidth: 72,
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-      ),
+      constraints: const BoxConstraints(minWidth: 78, maxWidth: 78),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       items: const [
         PopupMenuItem(
           value: SortBy.person,
-          height: 26, // ✅ tighter
+          height: 26,
           child: Center(
-            child: Text(
-              "Person",
-              style: TextStyle(fontWeight: FontWeight.normal), // ✅ NOT bold
-            ),
+            child: Text("Person", style: TextStyle(fontWeight: FontWeight.normal)),
+          ),
+        ),
+        PopupMenuItem(
+          value: SortBy.main,
+          height: 26,
+          child: Center(
+            child: Text("Main", style: TextStyle(fontWeight: FontWeight.normal)),
           ),
         ),
         PopupMenuItem(
           value: SortBy.status,
-          height: 26, // ✅ tighter
+          height: 26,
           child: Center(
-            child: Text(
-              "Status",
-              style: TextStyle(fontWeight: FontWeight.normal), // ✅ NOT bold
-            ),
+            child: Text("Status", style: TextStyle(fontWeight: FontWeight.normal)),
           ),
         ),
       ],
@@ -433,6 +447,7 @@ class _StatusPageState extends State<StatusPage> {
   @override
   Widget build(BuildContext context) {
     final rows = _rowsAll();
+    final lookup = _pinLookup();
 
     return Theme(
       data: Theme.of(context).copyWith(
@@ -474,6 +489,8 @@ class _StatusPageState extends State<StatusPage> {
               ],
             ),
             const SizedBox(height: 12),
+
+            // ✅ PERSON BLOCKS (existing)
             if (_sortBy == SortBy.person)
               _PersonBlocksView(
                 people: widget.people,
@@ -484,6 +501,21 @@ class _StatusPageState extends State<StatusPage> {
                   _showItemPopover(anchorKey: key, pin: pin, status: st);
                 },
               )
+
+            // ✅ MAIN BLOCKS (new)
+            else if (_sortBy == SortBy.main)
+              _MainBlocksView(
+                mains: widget.mains,
+                pinLookup: lookup,
+                statusFor: _statusFor,
+                dotColor: _dotColor,
+                onTapPin: (pin, key) {
+                  final st = _statusFor(pin);
+                  _showItemPopover(anchorKey: key, pin: pin, status: st);
+                },
+              )
+
+            // ✅ STATUS TABLE (existing)
             else
               _TableCard(
                 rows: rows,
@@ -553,7 +585,7 @@ class _LegendRow extends StatelessWidget {
 }
 
 // =======================================================
-// PERSON BLOCKS
+// PERSON BLOCKS (unchanged behavior)
 // =======================================================
 
 class _PersonBlocksView extends StatelessWidget {
@@ -561,7 +593,6 @@ class _PersonBlocksView extends StatelessWidget {
   final ItemStatus Function(PinItem) statusFor;
   final Color Function(ItemStatus) dotColor;
 
-  /// Returns (pin, anchorKey)
   final void Function(PinItem pin, GlobalKey key) onTapPin;
 
   const _PersonBlocksView({
@@ -573,7 +604,8 @@ class _PersonBlocksView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sorted = [...people]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    final sorted = [...people]
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -605,11 +637,82 @@ class _PersonBlocksView extends StatelessWidget {
   }
 }
 
+// =======================================================
+// MAIN BLOCKS (NEW)
+// =======================================================
+
+class _MainBlocksView extends StatelessWidget {
+  final List<MainGroup> mains;
+
+  /// pinId -> (person, pin)
+  final Map<String, ({Person person, PinItem pin})> pinLookup;
+
+  final ItemStatus Function(PinItem) statusFor;
+  final Color Function(ItemStatus) dotColor;
+
+  final void Function(PinItem pin, GlobalKey key) onTapPin;
+
+  const _MainBlocksView({
+    required this.mains,
+    required this.pinLookup,
+    required this.statusFor,
+    required this.dotColor,
+    required this.onTapPin,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final sorted = [...mains]
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final m in sorted) ...[
+          _Block(
+            title: m.name,
+            titleBold: false,
+            child: _pinsForMain(m).isEmpty
+                ? const Text("No items linked yet.", style: TextStyle(color: Color(0xFF9CA3AF)))
+                : Wrap(
+                    alignment: WrapAlignment.start,
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      for (final pin in _pinsForMain(m))
+                        _ItemPillDotAfter(
+                          name: pin.name,
+                          dotColor: dotColor(statusFor(pin)),
+                          onTap: (key) => onTapPin(pin, key),
+                        ),
+                    ],
+                  ),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ],
+    );
+  }
+
+  List<PinItem> _pinsForMain(MainGroup m) {
+    final pins = <PinItem>[];
+    for (final id in m.pinIds) {
+      final rec = pinLookup[id];
+      if (rec != null) pins.add(rec.pin);
+    }
+    pins.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return pins;
+  }
+}
+
+// =======================================================
+// ITEM PILL
+// =======================================================
+
 class _ItemPillDotAfter extends StatefulWidget {
   final String name;
   final Color dotColor;
 
-  /// gives you the internal anchorKey so you can open a popover right under this pill
   final void Function(GlobalKey anchorKey) onTap;
 
   const _ItemPillDotAfter({
@@ -655,7 +758,7 @@ class _ItemPillDotAfterState extends State<_ItemPillDotAfter> {
 }
 
 // =======================================================
-// TABLE (STATUS SORT) - with Refresh + toggle sorting
+// TABLE (STATUS SORT) - unchanged
 // =======================================================
 
 class _TableCard extends StatelessWidget {
@@ -682,11 +785,7 @@ class _TableCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         child: Center(
-          child: Text(
-            text,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontWeight: FontWeight.w500),
-          ),
+          child: Text(text, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w500)),
         ),
       ),
     );
@@ -696,11 +795,7 @@ class _TableCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       child: Center(
-        child: Text(
-          text,
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontWeight: FontWeight.w500),
-        ),
+        child: Text(text, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w500)),
       ),
     );
   }
@@ -745,11 +840,11 @@ class _TableCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         child: Table(
           columnWidths: const {
-            0: FlexColumnWidth(1.15), // Person
-            1: FlexColumnWidth(1.15), // Item
-            2: FlexColumnWidth(0.75), // Status
-            3: FlexColumnWidth(1.55), // Status at
-            4: FlexColumnWidth(0.75), // Refresh
+            0: FlexColumnWidth(1.15),
+            1: FlexColumnWidth(1.15),
+            2: FlexColumnWidth(0.75),
+            3: FlexColumnWidth(1.55),
+            4: FlexColumnWidth(0.75),
           },
           defaultVerticalAlignment: TableCellVerticalAlignment.middle,
           border: const TableBorder(horizontalInside: BorderSide(color: _divider)),
@@ -769,8 +864,7 @@ class _TableCard extends StatelessWidget {
                   _cell(Text(r.person.name, textAlign: TextAlign.center, softWrap: true)),
                   _cell(Text(r.pin.name, textAlign: TextAlign.center, softWrap: true)),
                   _cell(_dot(r.status)),
-                  _cell(Text(formatDateTime(r.pin.lastStatusOn),
-                      textAlign: TextAlign.center, softWrap: true)),
+                  _cell(Text(formatDateTime(r.pin.lastStatusOn), textAlign: TextAlign.center, softWrap: true)),
                   _cell(
                     InkWell(
                       onTap: () => onRefresh(r.pin),

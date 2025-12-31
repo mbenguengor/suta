@@ -23,38 +23,17 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _MainData {
-  final String id;
-  String name;
-  IconData icon;
-
-  bool muted;
-  bool synced;
-
-  bool ringEnabled;
-  bool lightEnabled;
-
-  _MainData({
-    required this.id,
-    required this.name,
-    required this.icon,
-    this.muted = false,
-    this.synced = true,
-    this.ringEnabled = true,
-    this.lightEnabled = true,
-  });
-}
-
 class _HomePageState extends State<HomePage> {
-  final List<_MainData> _mains = [];
-  final Map<String, List<PinItem>> _itemsByMain = {};
+  // ✅ shared now (stored in Person)
+  List<MainGroup> get _mains => widget.person.mains;
+  Map<String, List<PinItem>> get _itemsByMain => widget.person.itemsByMain;
 
   String? _editingMainId;
   final Map<String, TextEditingController> _mainControllers = {};
 
   bool _reorganizeMode = false;
 
-  // ✅ Demo pins per MAIN
+  // ✅ Demo pins per MAIN (still local; safe)
   final Map<String, List<PinItem>> _demoPinsByMain = {};
 
   // -------------------------------------------------------
@@ -218,12 +197,12 @@ class _HomePageState extends State<HomePage> {
   }
 
   // -------------------------------------------------------
-  // ✅ Main actions
+  // ✅ Main actions (now mutate shared Person data)
   // -------------------------------------------------------
   void _addMainFromPreset(String name, IconData icon) {
     final id = DateTime.now().microsecondsSinceEpoch.toString();
     setState(() {
-      _mains.add(_MainData(id: id, name: name, icon: icon));
+      _mains.add(MainGroup(id: id, name: name, icon: icon));
       _itemsByMain[id] = [];
     });
   }
@@ -236,25 +215,25 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  void _syncMain(_MainData m) {
+  void _syncMain(MainGroup m) {
     setState(() => m.synced = true);
     widget.onSync(m.id);
   }
 
-  void _toggleMainMute(_MainData m) {
+  void _toggleMainMute(MainGroup m) {
     setState(() => m.muted = !m.muted);
     widget.onToggleMute(m.id);
   }
 
-  void _toggleRing(_MainData m) {
+  void _toggleRing(MainGroup m) {
     setState(() => m.ringEnabled = !m.ringEnabled);
   }
 
-  void _toggleLight(_MainData m) {
+  void _toggleLight(MainGroup m) {
     setState(() => m.lightEnabled = !m.lightEnabled);
   }
 
-  void _deleteMain(_MainData m) {
+  void _deleteMain(MainGroup m) {
     setState(() {
       _itemsByMain.remove(m.id);
       _mainControllers.remove(m.id)?.dispose();
@@ -275,7 +254,7 @@ class _HomePageState extends State<HomePage> {
     _deleteConfirmMainId = null;
   }
 
-  void _showDeleteConfirm(_MainData m) {
+  void _showDeleteConfirm(MainGroup m) {
     if (_deleteConfirmEntry != null && _deleteConfirmMainId == m.id) {
       _hideDeleteConfirm();
       return;
@@ -365,26 +344,26 @@ class _HomePageState extends State<HomePage> {
   // -------------------------------------------------------
   // ✅ Main title editing
   // -------------------------------------------------------
-  TextEditingController _mainControllerFor(_MainData m) {
+  TextEditingController _mainControllerFor(MainGroup m) {
     return _mainControllers.putIfAbsent(
       m.id,
       () => TextEditingController(text: m.name),
     );
   }
 
-  void _startEditingMain(_MainData m) {
+  void _startEditingMain(MainGroup m) {
     final c = _mainControllerFor(m);
     c.text = m.name;
     setState(() => _editingMainId = m.id);
   }
 
-  void _cancelEditingMain(_MainData m) {
+  void _cancelEditingMain(MainGroup m) {
     final c = _mainControllerFor(m);
     c.text = m.name;
     setState(() => _editingMainId = null);
   }
 
-  void _saveEditingMain(_MainData m) {
+  void _saveEditingMain(MainGroup m) {
     final c = _mainControllerFor(m);
     final newName = c.text.trim();
     if (newName.isEmpty) return;
@@ -797,29 +776,26 @@ class _HomePageState extends State<HomePage> {
                     final p = _mainPresets[i];
                     _addMainFromPreset(p.label, p.icon);
                   },
-
-                  // ✅ UPDATED: less gap + non-bold text
                   itemBuilder: (_) => List.generate(_mainPresets.length, (i) {
                     final p = _mainPresets[i];
                     return PopupMenuItem<int>(
                       value: i,
-                      height: 28, // ✅ tighter
+                      height: 28,
                       child: Row(
                         children: [
                           Icon(p.icon, size: 16),
-                          const SizedBox(width: 4), // ✅ smaller gap
+                          const SizedBox(width: 4),
                           Text(
                             p.label,
                             style: const TextStyle(
                               fontSize: 13,
-                              fontWeight: FontWeight.normal, // ✅ remove bold
+                              fontWeight: FontWeight.normal,
                             ),
                           ),
                         ],
                       ),
                     );
                   }),
-
                   child: const _TopButton(
                     label: "Add Main",
                     icon: Icons.add_circle_outline,
@@ -864,13 +840,10 @@ class _HomePageState extends State<HomePage> {
 
               final isTravel = m.name.trim().toLowerCase() == "travel";
 
-              // ✅ Real linked items
+              // ✅ Real linked items (shared)
               final realLinkedItems = _itemsByMain[m.id] ?? const [];
 
-              // ✅ What we display:
-              // - If there are real items anywhere, show real items.
-              // - If demo mode and this main is Travel: show NO items (so it looks truly "no item linked").
-              // - Otherwise show demo pins.
+              // ✅ Display logic (unchanged)
               final List<PinItem> items = hasAnyItems
                   ? realLinkedItems
                   : (isTravel ? <PinItem>[] : _demoPinsForMain(m.id));
@@ -879,9 +852,6 @@ class _HomePageState extends State<HomePage> {
                 _recomputeInRange(pin);
               }
 
-              // ✅ Buttons:
-              // - For Travel: enabled ONLY when it has real linked items.
-              // - For all other mains: always enabled (as requested).
               final actionsEnabled = isTravel ? realLinkedItems.isNotEmpty : true;
 
               return Padding(
@@ -1263,7 +1233,7 @@ class _SlashedIcon extends StatelessWidget {
         children: [
           Icon(icon, size: size),
           Transform.rotate(
-            angle: -0.75, // diagonal slash
+            angle: -0.75,
             child: Container(
               width: size + 4,
               height: 2,
