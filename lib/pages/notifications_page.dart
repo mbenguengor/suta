@@ -1,8 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import '../models.dart';
 
 class NotificationsPage extends StatefulWidget {
   final List<AppNotification> notifications;
+
+  // ✅ provide People so we can show real avatar (photo/icon) per notification
+  final List<Person> people;
 
   /// optional demo button
   final VoidCallback? onAddDemoNotification;
@@ -10,11 +15,17 @@ class NotificationsPage extends StatefulWidget {
   final void Function(String id) onDelete;
   final void Function(String id, bool unread) onSetUnread;
 
+  // ✅ NEW: when user taps avatar in a notification row
+  // AppShell will switch to Home tab + select that person
+  final void Function(String personId) onOpenPerson;
+
   const NotificationsPage({
     super.key,
     required this.notifications,
+    required this.people,
     required this.onDelete,
     required this.onSetUnread,
+    required this.onOpenPerson,
     this.onAddDemoNotification,
   });
 
@@ -30,13 +41,16 @@ class _NotificationsPageState extends State<NotificationsPage> {
   final LayerLink _deleteAllLink = LayerLink();
   OverlayEntry? _deleteAllConfirmEntry;
 
+  // ✅ prevent avatar tap from also toggling expand/collapse
+  bool _suppressNextRowToggle = false;
+
   String _fmtDateTime(DateTime dt) {
     String two(int n) => n.toString().padLeft(2, '0');
     return "${dt.year}-${two(dt.month)}-${two(dt.day)}  ${two(dt.hour)}:${two(dt.minute)}";
   }
 
   // -------------------------------------------------------
-  // ✅ Tight buttons like before + remove ripple/overlay
+  // ✅ Tight buttons + remove ripple/overlay
   // -------------------------------------------------------
   ButtonStyle _noOverlay(ButtonStyle base) {
     return base.copyWith(
@@ -45,7 +59,6 @@ class _NotificationsPageState extends State<NotificationsPage> {
     );
   }
 
-  // ✅ bigger pills (more comfortable) while staying compact
   static const TextStyle _btnTextStyle = TextStyle(fontSize: 13, height: 1.15);
 
   ButtonStyle get _tightFilled => _noOverlay(
@@ -81,7 +94,6 @@ class _NotificationsPageState extends State<NotificationsPage> {
         ),
       );
 
-  // ✅ Add demo same, a touch wider horizontally
   ButtonStyle get _tightTonalForAddDemo => _noOverlay(
         FilledButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -94,10 +106,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
       );
 
   // -------------------------------------------------------
-  // ✅ Smaller buttons INSIDE each notification (expanded area)
+  // ✅ Smaller buttons inside each notification (expanded)
   // -------------------------------------------------------
-  static const TextStyle _rowBtnTextStyle =
-      TextStyle(fontSize: 13, height: 1.0);
+  static const TextStyle _rowBtnTextStyle = TextStyle(fontSize: 13, height: 1.0);
 
   ButtonStyle get _rowTightFilled => _noOverlay(
         FilledButton.styleFrom(
@@ -122,7 +133,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
       );
 
   // -------------------------------------------------------
-  // ✅ Rounded confirmation popover under Delete button (anchored)
+  // ✅ Rounded confirmation popover under Delete button
   // -------------------------------------------------------
   static const double _confirmRadius = 18;
 
@@ -174,16 +185,13 @@ class _NotificationsPageState extends State<NotificationsPage> {
                 child: const SizedBox.expand(),
               ),
 
-              // ✅ anchored to Delete button:
-              // targetAnchor = bottomRight of Delete
-              // followerAnchor = topRight of dialog
-              // => dialog right edge aligns with Delete right edge
+              // anchored to Delete button
               CompositedTransformFollower(
                 link: _deleteAllLink,
                 showWhenUnlinked: false,
                 targetAnchor: Alignment.bottomRight,
                 followerAnchor: Alignment.topRight,
-                offset: const Offset(0, 6), // small gap under the button
+                offset: const Offset(0, 6),
                 child: Material(
                   color: Colors.transparent,
                   child: Material(
@@ -209,7 +217,6 @@ class _NotificationsPageState extends State<NotificationsPage> {
                             const SizedBox(height: 10),
                             Row(
                               mainAxisSize: MainAxisSize.min,
-                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 TextButton(
                                   style: _confirmNoStyle,
@@ -259,8 +266,20 @@ class _NotificationsPageState extends State<NotificationsPage> {
   }
 
   void _toggleExpanded(String id) {
+    if (_suppressNextRowToggle) return;
+
     setState(() {
       _expandedId = (_expandedId == id) ? null : id;
+    });
+  }
+
+  void _openPersonFromAvatar(String personId) {
+    _suppressNextRowToggle = true;
+
+    widget.onOpenPerson(personId);
+
+    Future.microtask(() {
+      _suppressNextRowToggle = false;
     });
   }
 
@@ -272,6 +291,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final peopleById = {for (final p in widget.people) p.id: p};
+
     final all = [...widget.notifications]
       ..sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
     final unread = all.where((n) => n.unread).toList(growable: false);
@@ -318,14 +339,13 @@ class _NotificationsPageState extends State<NotificationsPage> {
                       child: const Text("Mark unread"),
                     ),
                     const SizedBox(width: 8),
-
-                    // ✅ anchor target for the confirmation dialog
                     CompositedTransformTarget(
                       link: _deleteAllLink,
                       child: FilledButton.tonal(
                         style: _tightTonal,
-                        onPressed:
-                            widget.notifications.isEmpty ? null : _showDeleteAllConfirm,
+                        onPressed: widget.notifications.isEmpty
+                            ? null
+                            : _showDeleteAllConfirm,
                         child: const Text("Delete"),
                       ),
                     ),
@@ -374,12 +394,15 @@ class _NotificationsPageState extends State<NotificationsPage> {
                 return Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: _NotificationTile(
+                    key: ValueKey(n.id), // ✅ stabilize element/state reuse
                     notification: n,
+                    person: peopleById[n.personId],
                     dateText: _fmtDateTime(n.occurredAt),
                     eventText: notificationEventLabel(n.event),
                     actionText: notificationActionLabel(n.action),
                     expanded: expanded,
                     onTap: () => _toggleExpanded(n.id),
+                    onTapAvatar: () => _openPersonFromAvatar(n.personId),
                     onDelete: () {
                       widget.onDelete(n.id);
                       if (_expandedId == n.id) {
@@ -406,6 +429,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
 class _NotificationTile extends StatelessWidget {
   final AppNotification notification;
+  final Person? person;
 
   final String dateText;
   final String eventText;
@@ -413,6 +437,8 @@ class _NotificationTile extends StatelessWidget {
 
   final bool expanded;
   final VoidCallback onTap;
+
+  final VoidCallback onTapAvatar;
 
   final VoidCallback onDelete;
   final VoidCallback onToggleRead;
@@ -422,12 +448,15 @@ class _NotificationTile extends StatelessWidget {
   final String Function(DateTime) fmtDateTime;
 
   const _NotificationTile({
+    super.key,
     required this.notification,
+    required this.person,
     required this.dateText,
     required this.eventText,
     required this.actionText,
     required this.expanded,
     required this.onTap,
+    required this.onTapAvatar,
     required this.onDelete,
     required this.onToggleRead,
     required this.tightTextStyle,
@@ -461,13 +490,10 @@ class _NotificationTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final personColor = _personColor(notification.personId);
 
-    final bg = notification.unread
-        ? personColor.withOpacity(0.18)
-        : const Color(0xFFE5E7EB);
-
-    final border = notification.unread
-        ? personColor.withOpacity(0.35)
-        : const Color(0xFFD1D5DB);
+    final bg =
+        notification.unread ? personColor.withOpacity(0.18) : const Color(0xFFE5E7EB);
+    final border =
+        notification.unread ? personColor.withOpacity(0.35) : const Color(0xFFD1D5DB);
 
     Text cell(
       String text, {
@@ -481,6 +507,36 @@ class _NotificationTile extends StatelessWidget {
         overflow: TextOverflow.visible,
         textAlign: align,
         style: TextStyle(fontSize: 13, fontWeight: weight, height: 1.2),
+      );
+    }
+
+    Widget buildAvatar() {
+      ImageProvider? img;
+      Widget? child;
+      Color bgColor = const Color(0xFFE5E7EB);
+
+      if (person != null && person!.avatarFile != null) {
+        img = FileImage(person!.avatarFile!);
+      } else if (person != null && person!.avatarIcon != null) {
+        child = Icon(person!.avatarIcon, size: 14, color: Colors.black87);
+      } else {
+        bgColor = personColor;
+        child = Text(
+          _initials(notification.personName),
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+            fontSize: 10,
+            height: 1.0,
+          ),
+        );
+      }
+
+      return CircleAvatar(
+        radius: 11,
+        backgroundColor: bgColor,
+        backgroundImage: img,
+        child: img != null ? null : child,
       );
     }
 
@@ -509,8 +565,7 @@ class _NotificationTile extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
@@ -519,32 +574,27 @@ class _NotificationTile extends StatelessWidget {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            Container(
-                              width: 22,
-                              height: 22,
-                              decoration: BoxDecoration(
-                                color: personColor,
-                                shape: BoxShape.circle,
-                                border:
-                                    Border.all(color: Colors.white, width: 2),
-                              ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                _initials(notification.personName),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 10,
-                                  height: 1.0,
+                            // ✅ white ring + avatar inside (tappable)
+                            InkWell(
+                              onTap: onTapAvatar,
+                              borderRadius: BorderRadius.circular(999),
+                              child: Padding(
+                                padding: const EdgeInsets.all(2),
+                                child: Container(
+                                  width: 22,
+                                  height: 22,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white, width: 2),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: buildAvatar(),
                                 ),
                               ),
                             ),
                             const SizedBox(width: 8),
                             Expanded(
-                              child: cell(
-                                notification.personName,
-                                weight: FontWeight.normal,
-                              ),
+                              child: cell(notification.personName),
                             ),
                           ],
                         ),
@@ -588,9 +638,8 @@ class _NotificationTile extends StatelessWidget {
                   duration: const Duration(milliseconds: 160),
                   firstCurve: Curves.easeOut,
                   secondCurve: Curves.easeOut,
-                  crossFadeState: expanded
-                      ? CrossFadeState.showSecond
-                      : CrossFadeState.showFirst,
+                  crossFadeState:
+                      expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
                   firstChild: const SizedBox.shrink(),
                   secondChild: Padding(
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
@@ -620,9 +669,7 @@ class _NotificationTile extends StatelessWidget {
                                 style: tightFilledStyle,
                                 onPressed: onToggleRead,
                                 child: Text(
-                                  notification.unread
-                                      ? "Mark read"
-                                      : "Mark unread",
+                                  notification.unread ? "Mark read" : "Mark unread",
                                 ),
                               ),
                               const SizedBox(width: 10),

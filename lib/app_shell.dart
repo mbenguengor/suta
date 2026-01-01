@@ -20,7 +20,8 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin {
+class _AppShellState extends State<AppShell>
+    with SingleTickerProviderStateMixin {
   int tabIndex = 0;
   bool notificationsEnabled = true;
 
@@ -438,11 +439,15 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
   void _applyPeopleFromSettings(List<Person> updated) {
     setState(() {
       people = updated;
+
       if (people.isEmpty) {
         selectedPersonIndex = 0;
       } else {
         selectedPersonIndex = selectedPersonIndex.clamp(0, people.length - 1);
       }
+
+      // ✅ make derived structures consistent immediately
+      _rebuildDerivedData();
     });
 
     _initOrRebuildPeopleController(keepSelectedIndex: true);
@@ -455,6 +460,26 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
     }
     if (!mounted) return;
     setState(() => tabIndex = i);
+  }
+
+  // =======================================================
+  // ✅ Notification avatar -> go to Home + select person
+  // =======================================================
+
+  Future<void> _openPersonFromNotification(String personId) async {
+    if (_panelVisible) {
+      await _closePeoplePanel();
+    }
+    if (!mounted) return;
+
+    if (tabIndex != 0) {
+      setState(() => tabIndex = 0);
+    }
+
+    final idx = people.indexWhere((p) => p.id == personId);
+    if (idx < 0) return;
+
+    _goToPerson(idx);
   }
 
   // =======================================================
@@ -569,21 +594,28 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
         },
       ),
       StatusPage(
-        people: people,
-        mains: mains,
-        onRefreshPin: _onRefreshPinFromStatus,
-      ),
+  people: people,
+  mains: mains,
+  onRefreshPin: _onRefreshPinFromStatus,
+  onOpenPerson: _openPersonFromNotification, // ✅ ADD THIS
+),
+
+      // ✅ pass people + callback to open person from avatar tap
       NotificationsPage(
         notifications: _notifications,
+        people: people,
         onAddDemoNotification: _addDemoNotification,
         onDelete: _deleteNotification,
         onSetUnread: _setNotificationUnread,
+        onOpenPerson: _openPersonFromNotification, // ✅ REQUIRED
       ),
+
       SettingsPage(
-        profile: _profile,
-        people: people,
-        onSavePeople: _applyPeopleFromSettings,
-      ),
+  profile: _profile,
+  people: people,
+  onSavePeople: _applyPeopleFromSettings,
+  onOpenPerson: _openPersonFromNotification, // ✅ ADD
+),
     ];
 
     return Scaffold(
@@ -770,8 +802,9 @@ class _PeopleSidePanelState extends State<_PeopleSidePanel> {
 
         final aboveTop = anchorTop - _gapAboveAnchor - popupHeight;
 
-        double chosenTop =
-            belowBottom <= (panelHeight - _panelPaddingBottom) ? belowTop : aboveTop;
+        double chosenTop = belowBottom <= (panelHeight - _panelPaddingBottom)
+            ? belowTop
+            : aboveTop;
 
         final maxTop = panelHeight - _panelPaddingBottom - popupHeight;
         chosenTop = (maxTop >= _panelPaddingTop)
@@ -916,11 +949,13 @@ class _PeopleSidePanelState extends State<_PeopleSidePanel> {
                                       const SizedBox(height: 4),
                                     ],
                                     ListTile(
-                                      contentPadding: const EdgeInsets.symmetric(
-                                          horizontal: 6),
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                              horizontal: 6),
                                       leading: const Icon(
                                           Icons.person_add_alt_1_outlined),
-                                      title: Text("Add person", key: _addTitleKey),
+                                      title:
+                                          Text("Add person", key: _addTitleKey),
                                       onTap: _openAddPopup,
                                     ),
                                     const SizedBox(height: 4),
@@ -931,8 +966,9 @@ class _PeopleSidePanelState extends State<_PeopleSidePanel> {
                                     ),
                                     const SizedBox(height: 4),
                                     ListTile(
-                                      contentPadding: const EdgeInsets.symmetric(
-                                          horizontal: 6),
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                              horizontal: 6),
                                       leading: const Icon(Icons.logout),
                                       title: const Text("Log out"),
                                       onTap: widget.onLogout,

@@ -15,11 +15,15 @@ class SettingsPage extends StatefulWidget {
   final List<Person> people;
   final void Function(List<Person> updatedPeople) onSavePeople;
 
+  /// ✅ NEW: open person profile (AppShell should switch to Home + select person)
+  final void Function(String personId) onOpenPerson;
+
   const SettingsPage({
     super.key,
     required this.profile,
     required this.people,
     required this.onSavePeople,
+    required this.onOpenPerson, // ✅ NEW
   });
 
   @override
@@ -316,6 +320,12 @@ class _SettingsPageState extends State<SettingsPage> {
                                       draft = next;
                                       dirty = true;
                                     });
+                                  },
+
+                                  // ✅ NEW: open person profile + close sheet
+                                  onOpenPerson: (personId) {
+                                    Navigator.of(ctx).pop();
+                                    widget.onOpenPerson(personId);
                                   },
                                 ),
                               ),
@@ -672,8 +682,9 @@ class _SettingsPageState extends State<SettingsPage> {
                     maxHeight: maxHeight,
                   );
 
-                  double top =
-                      placeAbove ? (anchorTopLeft.dy - gap - maxHeight) : topBelow;
+                  double top = placeAbove
+                      ? (anchorTopLeft.dy - gap - maxHeight)
+                      : topBelow;
                   top = top.clamp(margin + safePad.top, effectiveH - margin);
 
                   return AnimatedPadding(
@@ -1194,11 +1205,15 @@ class _ManagePeopleSheetBody extends StatefulWidget {
   /// Called when list structure changes (delete) so parent can keep reference
   final void Function(List<Person> next) onDraftChanged;
 
+  /// ✅ NEW: open person profile (Home)
+  final void Function(String personId) onOpenPerson;
+
   const _ManagePeopleSheetBody({
     required this.draftPeople,
     required this.availableAvatars,
     required this.onChanged,
     required this.onDraftChanged,
+    required this.onOpenPerson, // ✅ NEW
   });
 
   @override
@@ -1394,8 +1409,9 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
                           .clamp(120.0, effectiveH - (margin * 2))
                           .toDouble();
 
-                  double top =
-                      placeAbove ? (anchorTopLeft.dy - gap - maxHeight) : topBelow;
+                  double top = placeAbove
+                      ? (anchorTopLeft.dy - gap - maxHeight)
+                      : topBelow;
                   top = top.clamp(margin + safePad.top, effectiveH - margin);
 
                   final hasAvatar =
@@ -1580,8 +1596,9 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
                           .clamp(160.0, effectiveH - (margin * 2))
                           .toDouble();
 
-                  double top =
-                      placeAbove ? (anchorTopLeft.dy - gap - maxHeight) : topBelow;
+                  double top = placeAbove
+                      ? (anchorTopLeft.dy - gap - maxHeight)
+                      : topBelow;
                   top = top.clamp(margin + safePad.top, effectiveH - margin);
 
                   return AnimatedPadding(
@@ -1898,11 +1915,20 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
                             onSubmitted: (_) => _saveEdit(p),
                             style: const TextStyle(fontSize: 16),
                           )
-                        : Text(
-                            p.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 16),
+                        : InkWell(
+                            // ✅ NEW: tap person name → open profile (Home)
+                            onTap: () => widget.onOpenPerson(p.id),
+                            borderRadius: BorderRadius.circular(10),
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+                              child: Text(
+                                p.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 16),
+                              ),
+                            ),
                           ),
                   ),
                   const SizedBox(width: 8),
@@ -1971,21 +1997,51 @@ class _ManagePeopleSheetBodyState extends State<_ManagePeopleSheetBody> {
 }
 
 Person _clonePersonDeep(Person p) {
+  // ✅ clone pins
+  final clonedPins = p.pins
+      .map(
+        (x) => PinItem(
+          id: x.id,
+          name: x.name,
+          muted: x.muted,
+          synced: x.synced,
+          inRange: x.inRange,
+          lastStatusOn: x.lastStatusOn,
+        ),
+      )
+      .toList();
+
+  // ✅ clone mains (VERY IMPORTANT)
+  final clonedMains = p.mains
+      .map(
+        (m) => MainGroup(
+          id: m.id,
+          name: m.name,
+          icon: m.icon,
+          pinIds: List<String>.from(m.pinIds),
+        ),
+      )
+      .toList();
+
+  // ✅ rebuild itemsByMain from cloned pins + mains so it stays consistent
+  final clonedItemsByMain = <String, List<PinItem>>{};
+  final byId = <String, PinItem>{for (final pin in clonedPins) pin.id: pin};
+
+  for (final m in clonedMains) {
+    final list = <PinItem>[];
+    for (final pid in m.pinIds) {
+      final pin = byId[pid];
+      if (pin != null) list.add(pin);
+    }
+    clonedItemsByMain[m.id] = list;
+  }
+
   return Person(
     id: p.id,
     name: p.name,
-    pins: p.pins
-        .map(
-          (x) => PinItem(
-            id: x.id,
-            name: x.name,
-            muted: x.muted,
-            synced: x.synced,
-            inRange: x.inRange,
-            lastStatusOn: x.lastStatusOn,
-          ),
-        )
-        .toList(),
+    pins: clonedPins,
+    mains: clonedMains,
+    itemsByMain: clonedItemsByMain,
     avatarFile: p.avatarFile,
     avatarIcon: p.avatarIcon,
   );
@@ -2355,14 +2411,14 @@ class _PrivacyKidsText extends StatelessWidget {
           ),
         );
 
-    Widget bullets(String title, List<String> items) => Padding(
+    Widget bullets(String title, List<String> pins) => Padding(
           padding: const EdgeInsets.only(bottom: 14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title, style: h),
               const SizedBox(height: 6),
-              ...items.map(
+              ...pins.map(
                 (t) => Padding(
                   padding: const EdgeInsets.only(bottom: 6),
                   child: Row(
@@ -2389,7 +2445,7 @@ class _PrivacyKidsText extends StatelessWidget {
           "What we may collect",
           [
             "Basic profile info (like your name).",
-            "App activity (for example: when you create or edit items).",
+            "App activity (for example: when you create or edit pins).",
             "Device information (to keep the app secure and working well).",
           ],
         ),
@@ -2421,7 +2477,8 @@ class _PrivacyAdultsScrollable extends StatefulWidget {
   const _PrivacyAdultsScrollable();
 
   @override
-  State<_PrivacyAdultsScrollable> createState() => _PrivacyAdultsScrollableState();
+  State<_PrivacyAdultsScrollable> createState() =>
+      _PrivacyAdultsScrollableState();
 }
 
 class _PrivacyAdultsScrollableState extends State<_PrivacyAdultsScrollable> {

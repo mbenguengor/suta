@@ -152,8 +152,11 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    // ✅ never call setState during dispose
     _hideDeleteConfirm();
-    _hideItemPopover(force: true);
+
+    // ✅ close popover WITHOUT setState (prevents "_lifecycleState defunct" crash)
+    _hideItemPopover(force: true, fromDispose: true);
 
     for (final c in _mainControllers.values) {
       c.dispose();
@@ -395,6 +398,7 @@ class _HomePageState extends State<HomePage> {
     final nextInRange = dist <= range;
 
     if (nextInRange != pin.inRange) {
+      if (!mounted) return;
       setState(() {
         pin.inRange = nextInRange;
         pin.lastStatusOn = DateTime.now();
@@ -415,8 +419,25 @@ class _HomePageState extends State<HomePage> {
   // -------------------------------------------------------
   // ✅ Item popover logic
   // -------------------------------------------------------
-  void _hideItemPopover({required bool force}) {
+  void _hideItemPopover({required bool force, bool fromDispose = false}) {
     if (!force && _itemDirty) return;
+
+    // Always dispose controllers / reset fields safely
+    _itemTitleCtrl?.dispose();
+    _itemTitleCtrl = null;
+
+    _itemRangeCtrl?.dispose();
+    _itemRangeCtrl = null;
+
+    // During dispose (or if already unmounted), NEVER call setState
+    if (fromDispose || !mounted) {
+      _openItemId = null;
+      _openPin = null;
+      _itemEditMode = false;
+      _itemDirty = false;
+      _extraBottomPadding = 0;
+      return;
+    }
 
     setState(() {
       _openItemId = null;
@@ -425,12 +446,6 @@ class _HomePageState extends State<HomePage> {
       _itemDirty = false;
       _extraBottomPadding = 0;
     });
-
-    _itemTitleCtrl?.dispose();
-    _itemTitleCtrl = null;
-
-    _itemRangeCtrl?.dispose();
-    _itemRangeCtrl = null;
   }
 
   void _openItemPopover({required PinItem pin}) {
@@ -454,6 +469,7 @@ class _HomePageState extends State<HomePage> {
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       _updateExtraPaddingFromPopover();
       _ensurePopoverFullyVisible(pin.id);
     });
@@ -503,7 +519,7 @@ class _HomePageState extends State<HomePage> {
 
     final overflow = popBottom - stackBottom;
 
-    if (overflow > 0) {
+    if (overflow > 0 && _scrollCtrl.hasClients) {
       final target = (_scrollCtrl.offset + overflow + 12).clamp(
         _scrollCtrl.position.minScrollExtent,
         _scrollCtrl.position.maxScrollExtent,
@@ -516,6 +532,7 @@ class _HomePageState extends State<HomePage> {
       );
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
         _updateExtraPaddingFromPopover();
       });
     }
@@ -582,7 +599,7 @@ class _HomePageState extends State<HomePage> {
                   _itemDirty = false;
                 });
 
-                setState(() {});
+                if (mounted) setState(() {});
                 _hideItemPopover(force: true);
               }
 
@@ -843,7 +860,7 @@ class _HomePageState extends State<HomePage> {
               // ✅ Real linked items (shared)
               final realLinkedItems = _itemsByMain[m.id] ?? const [];
 
-              // ✅ Display logic (unchanged)
+              // ✅ Display logic (demo vs real)
               final List<PinItem> items = hasAnyItems
                   ? realLinkedItems
                   : (isTravel ? <PinItem>[] : _demoPinsForMain(m.id));
@@ -852,7 +869,17 @@ class _HomePageState extends State<HomePage> {
                 _recomputeInRange(pin);
               }
 
-              final actionsEnabled = isTravel ? realLinkedItems.isNotEmpty : true;
+              // -------------------------------------------------------
+              // ✅ Buttons enable rules (FIXED)
+              //   - Sync: always enabled
+              //   - Delete: always enabled (even when no items)
+              //   - Mute/Ring/Light:
+              //       * Only Travel is restricted until real items exist
+              //       * All other mains stay enabled (demo-friendly)
+              // -------------------------------------------------------
+              final bool hasRealLinks = realLinkedItems.isNotEmpty;
+              final bool advancedActionsEnabled = isTravel ? hasRealLinks : true;
+              final bool deleteEnabled = true;
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -944,7 +971,7 @@ class _HomePageState extends State<HomePage> {
                                 icon: m.muted
                                     ? Icons.volume_off_outlined
                                     : Icons.volume_up_outlined,
-                                enabled: actionsEnabled,
+                                enabled: advancedActionsEnabled,
                                 onTap: () => _toggleMainMute(m),
                               ),
                               const SizedBox(width: 6),
@@ -953,15 +980,16 @@ class _HomePageState extends State<HomePage> {
                                 icon: m.ringEnabled
                                     ? Icons.notifications_active_outlined
                                     : Icons.notifications_off_outlined,
-                                enabled: actionsEnabled,
+                                enabled: advancedActionsEnabled,
                                 onTap: () => _toggleRing(m),
                               ),
                               const SizedBox(width: 6),
                               _SmallAction(
                                 label: "Light",
-                                enabled: actionsEnabled,
+                                enabled: advancedActionsEnabled,
                                 iconWidget: m.lightEnabled
-                                    ? const Icon(Icons.lightbulb_outline, size: 16)
+                                    ? const Icon(Icons.lightbulb_outline,
+                                        size: 16)
                                     : const _SlashedIcon(
                                         icon: Icons.lightbulb_outline,
                                         size: 16,
@@ -969,22 +997,15 @@ class _HomePageState extends State<HomePage> {
                                 onTap: () => _toggleLight(m),
                               ),
                               const SizedBox(width: 6),
-                              if (actionsEnabled)
-                                CompositedTransformTarget(
-                                  link: _deleteLinkFor(m.id),
-                                  child: _SmallAction(
-                                    label: "Delete",
-                                    icon: Icons.delete_outline,
-                                    onTap: () => _showDeleteConfirm(m),
-                                  ),
-                                )
-                              else
-                                _SmallAction(
+                              CompositedTransformTarget(
+                                link: _deleteLinkFor(m.id),
+                                child: _SmallAction(
                                   label: "Delete",
                                   icon: Icons.delete_outline,
-                                  enabled: false,
-                                  onTap: () {},
+                                  enabled: deleteEnabled,
+                                  onTap: () => _showDeleteConfirm(m),
                                 ),
+                              ),
                             ],
                           ),
                         ),
@@ -1012,7 +1033,8 @@ class _HomePageState extends State<HomePage> {
                                   child: _ItemPill(
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
-                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.center,
                                       children: [
                                         Text(
                                           pin.name,
@@ -1020,7 +1042,8 @@ class _HomePageState extends State<HomePage> {
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                         const SizedBox(width: 6),
-                                        Icon(Icons.sync, size: 16, color: syncColor),
+                                        Icon(Icons.sync,
+                                            size: 16, color: syncColor),
                                       ],
                                     ),
                                   ),

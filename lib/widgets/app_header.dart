@@ -71,9 +71,7 @@ class AppHeader extends StatelessWidget {
 
                 // ✅ Bell = allow/deny phone notifications
                 IconButton(
-                  tooltip: notificationsEnabled
-                      ? "Notifications on"
-                      : "Notifications off",
+                  // ✅ removed tooltip (was causing TooltipState ticker spam)
                   onPressed: onToggleNotifications,
                   icon: Icon(
                     notificationsEnabled
@@ -325,7 +323,6 @@ class _MiniAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Prefer custom avatar (file/icon) if set; fallback to initials-color
     ImageProvider? bg;
     if (person.avatarFile != null) bg = FileImage(person.avatarFile!);
 

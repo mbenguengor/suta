@@ -3,7 +3,6 @@ import 'package:suta/models.dart';
 
 enum SortBy { person, main, status }
 enum ItemStatus { inRange, outOfRange, notSynced }
-
 enum _TableOrderBy { person, item, status, statusAt }
 
 class StatusPage extends StatefulWidget {
@@ -16,11 +15,15 @@ class StatusPage extends StatefulWidget {
   /// For now this will just update lastStatusOn + toggle inRange for demo.
   final void Function(String pinId)? onRefreshPin;
 
+  /// ✅ NEW: open person profile (AppShell should switch to Home + select person)
+  final void Function(String personId) onOpenPerson;
+
   const StatusPage({
     super.key,
     required this.people,
     required this.mains,
     this.onRefreshPin,
+    required this.onOpenPerson, // ✅ NEW
   });
 
   @override
@@ -81,7 +84,7 @@ class _StatusPageState extends State<StatusPage> {
 
   String _formatDateTime(DateTime dt) {
     String two(int n) => n.toString().padLeft(2, '0');
-    return "${dt.year}-${two(dt.month)}-${two(dt.day)}  ${two(dt.hour)}:${two(dt.minute)}";
+    return "${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}";
   }
 
   // ---------------- Lookups (pinId -> owner) ----------------
@@ -129,6 +132,7 @@ class _StatusPageState extends State<StatusPage> {
                   final viewInsets = mq.viewInsets;
 
                   final double effectiveH = screenH - viewInsets.bottom;
+
                   const double margin = 12;
                   const double gap = 8;
 
@@ -139,6 +143,7 @@ class _StatusPageState extends State<StatusPage> {
                   if (anchorCtx == null) return const SizedBox.shrink();
 
                   final anchorBox = anchorCtx.findRenderObject() as RenderBox;
+
                   final anchorTopLeft =
                       anchorBox.localToGlobal(Offset.zero, ancestor: overlayBox);
                   final anchorBottomLeft = anchorBox.localToGlobal(
@@ -199,7 +204,8 @@ class _StatusPageState extends State<StatusPage> {
                                   padding: EdgeInsets.zero,
                                   child: IntrinsicWidth(
                                     child: Padding(
-                                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                                      padding:
+                                          const EdgeInsets.fromLTRB(10, 8, 10, 8),
                                       child: Column(
                                         mainAxisSize: MainAxisSize.min,
                                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -291,6 +297,7 @@ class _StatusPageState extends State<StatusPage> {
 
   List<_RowModel> _rowsAll() {
     final rows = <_RowModel>[];
+
     for (final p in widget.people) {
       for (final pin in p.pins) {
         rows.add(_RowModel(person: p, pin: pin, status: _statusFor(pin)));
@@ -311,10 +318,10 @@ class _StatusPageState extends State<StatusPage> {
     // Status table sort
     rows.sort((a, b) {
       int cmp;
-
       switch (_tableOrderBy) {
         case _TableOrderBy.person:
-          cmp = a.person.name.toLowerCase().compareTo(b.person.name.toLowerCase());
+          cmp =
+              a.person.name.toLowerCase().compareTo(b.person.name.toLowerCase());
           if (cmp != 0) break;
           cmp = a.pin.name.toLowerCase().compareTo(b.pin.name.toLowerCase());
           break;
@@ -322,13 +329,16 @@ class _StatusPageState extends State<StatusPage> {
         case _TableOrderBy.item:
           cmp = a.pin.name.toLowerCase().compareTo(b.pin.name.toLowerCase());
           if (cmp != 0) break;
-          cmp = a.person.name.toLowerCase().compareTo(b.person.name.toLowerCase());
+          cmp =
+              a.person.name.toLowerCase().compareTo(b.person.name.toLowerCase());
           break;
 
         case _TableOrderBy.status:
-          cmp = _statusRankRedFirst(a.status).compareTo(_statusRankRedFirst(b.status));
+          cmp = _statusRankRedFirst(a.status)
+              .compareTo(_statusRankRedFirst(b.status));
           if (cmp != 0) break;
-          cmp = a.person.name.toLowerCase().compareTo(b.person.name.toLowerCase());
+          cmp =
+              a.person.name.toLowerCase().compareTo(b.person.name.toLowerCase());
           if (cmp != 0) break;
           cmp = a.pin.name.toLowerCase().compareTo(b.pin.name.toLowerCase());
           break;
@@ -336,12 +346,12 @@ class _StatusPageState extends State<StatusPage> {
         case _TableOrderBy.statusAt:
           cmp = b.pin.lastStatusOn.compareTo(a.pin.lastStatusOn);
           if (cmp != 0) break;
-          cmp = a.person.name.toLowerCase().compareTo(b.person.name.toLowerCase());
+          cmp =
+              a.person.name.toLowerCase().compareTo(b.person.name.toLowerCase());
           if (cmp != 0) break;
           cmp = a.pin.name.toLowerCase().compareTo(b.pin.name.toLowerCase());
           break;
       }
-
       return _tableAsc ? cmp : -cmp;
     });
 
@@ -412,7 +422,6 @@ class _StatusPageState extends State<StatusPage> {
 
     setState(() {
       _sortBy = res;
-
       if (_sortBy == SortBy.status) {
         _tableOrderBy = _TableOrderBy.status;
         _tableAsc = true;
@@ -437,7 +446,6 @@ class _StatusPageState extends State<StatusPage> {
       setState(() {});
       return;
     }
-
     setState(() {
       pin.lastStatusOn = DateTime.now();
       pin.inRange = !pin.inRange;
@@ -469,7 +477,8 @@ class _StatusPageState extends State<StatusPage> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text("Sort by:", style: TextStyle(fontWeight: FontWeight.w600)),
+                    const Text("Sort by:",
+                        style: TextStyle(fontWeight: FontWeight.w600)),
                     const SizedBox(width: 4),
                     SizedBox(
                       width: _sortValueWidth,
@@ -490,7 +499,7 @@ class _StatusPageState extends State<StatusPage> {
             ),
             const SizedBox(height: 12),
 
-            // ✅ PERSON BLOCKS (existing)
+            // ✅ PERSON BLOCKS (person title clickable)
             if (_sortBy == SortBy.person)
               _PersonBlocksView(
                 people: widget.people,
@@ -500,9 +509,10 @@ class _StatusPageState extends State<StatusPage> {
                   final st = _statusFor(pin);
                   _showItemPopover(anchorKey: key, pin: pin, status: st);
                 },
+                onOpenPerson: widget.onOpenPerson, // ✅ NEW
               )
 
-            // ✅ MAIN BLOCKS (new)
+            // ✅ MAIN BLOCKS
             else if (_sortBy == SortBy.main)
               _MainBlocksView(
                 mains: widget.mains,
@@ -515,7 +525,7 @@ class _StatusPageState extends State<StatusPage> {
                 },
               )
 
-            // ✅ STATUS TABLE (existing)
+            // ✅ STATUS TABLE (person cell clickable)
             else
               _TableCard(
                 rows: rows,
@@ -523,6 +533,7 @@ class _StatusPageState extends State<StatusPage> {
                 formatDateTime: _formatDateTime,
                 onHeaderTap: _toggleOrder,
                 onRefresh: _refreshRow,
+                onOpenPerson: widget.onOpenPerson, // ✅ NEW
               ),
           ],
         ),
@@ -539,6 +550,7 @@ class _RowModel {
   final Person person;
   final PinItem pin;
   final ItemStatus status;
+
   _RowModel({required this.person, required this.pin, required this.status});
 }
 
@@ -558,7 +570,6 @@ class _LegendRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const style = TextStyle(fontSize: 12, fontWeight: FontWeight.w600);
-
     return Wrap(
       spacing: 12,
       runSpacing: 6,
@@ -585,21 +596,24 @@ class _LegendRow extends StatelessWidget {
 }
 
 // =======================================================
-// PERSON BLOCKS (unchanged behavior)
+// PERSON BLOCKS
 // =======================================================
 
 class _PersonBlocksView extends StatelessWidget {
   final List<Person> people;
   final ItemStatus Function(PinItem) statusFor;
   final Color Function(ItemStatus) dotColor;
-
   final void Function(PinItem pin, GlobalKey key) onTapPin;
+
+  // ✅ NEW
+  final void Function(String personId) onOpenPerson;
 
   const _PersonBlocksView({
     required this.people,
     required this.statusFor,
     required this.dotColor,
     required this.onTapPin,
+    required this.onOpenPerson, // ✅ NEW
   });
 
   @override
@@ -614,8 +628,13 @@ class _PersonBlocksView extends StatelessWidget {
           _Block(
             title: p.name,
             titleBold: false,
+            // ✅ person name click → open profile (Home)
+            onTitleTap: () => onOpenPerson(p.id),
             child: p.pins.isEmpty
-                ? const Text("No items linked yet.", style: TextStyle(color: Color(0xFF9CA3AF)))
+                ? const Text(
+                    "No items linked yet.",
+                    style: TextStyle(color: Color(0xFF9CA3AF)),
+                  )
                 : Wrap(
                     alignment: WrapAlignment.start,
                     spacing: 10,
@@ -638,7 +657,7 @@ class _PersonBlocksView extends StatelessWidget {
 }
 
 // =======================================================
-// MAIN BLOCKS (NEW)
+// MAIN BLOCKS
 // =======================================================
 
 class _MainBlocksView extends StatelessWidget {
@@ -649,7 +668,6 @@ class _MainBlocksView extends StatelessWidget {
 
   final ItemStatus Function(PinItem) statusFor;
   final Color Function(ItemStatus) dotColor;
-
   final void Function(PinItem pin, GlobalKey key) onTapPin;
 
   const _MainBlocksView({
@@ -673,7 +691,10 @@ class _MainBlocksView extends StatelessWidget {
             title: m.name,
             titleBold: false,
             child: _pinsForMain(m).isEmpty
-                ? const Text("No items linked yet.", style: TextStyle(color: Color(0xFF9CA3AF)))
+                ? const Text(
+                    "No items linked yet.",
+                    style: TextStyle(color: Color(0xFF9CA3AF)),
+                  )
                 : Wrap(
                     alignment: WrapAlignment.start,
                     spacing: 10,
@@ -712,7 +733,6 @@ class _MainBlocksView extends StatelessWidget {
 class _ItemPillDotAfter extends StatefulWidget {
   final String name;
   final Color dotColor;
-
   final void Function(GlobalKey anchorKey) onTap;
 
   const _ItemPillDotAfter({
@@ -748,7 +768,8 @@ class _ItemPillDotAfterState extends State<_ItemPillDotAfter> {
             Container(
               width: 10,
               height: 10,
-              decoration: BoxDecoration(color: widget.dotColor, shape: BoxShape.circle),
+              decoration:
+                  BoxDecoration(color: widget.dotColor, shape: BoxShape.circle),
             ),
           ],
         ),
@@ -758,16 +779,18 @@ class _ItemPillDotAfterState extends State<_ItemPillDotAfter> {
 }
 
 // =======================================================
-// TABLE (STATUS SORT) - unchanged
+// TABLE (STATUS SORT)
 // =======================================================
 
 class _TableCard extends StatelessWidget {
   final List<_RowModel> rows;
   final Color Function(ItemStatus) dotColor;
   final String Function(DateTime) formatDateTime;
-
   final void Function(_TableOrderBy by) onHeaderTap;
   final void Function(PinItem pin) onRefresh;
+
+  // ✅ NEW
+  final void Function(String personId) onOpenPerson;
 
   const _TableCard({
     required this.rows,
@@ -775,6 +798,7 @@ class _TableCard extends StatelessWidget {
     required this.formatDateTime,
     required this.onHeaderTap,
     required this.onRefresh,
+    required this.onOpenPerson, // ✅ NEW
   });
 
   static const _divider = Color(0xFFE6E8EF);
@@ -785,7 +809,11 @@ class _TableCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         child: Center(
-          child: Text(text, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w500)),
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontWeight: FontWeight.w500),
+          ),
         ),
       ),
     );
@@ -795,7 +823,11 @@ class _TableCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       child: Center(
-        child: Text(text, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w500)),
+        child: Text(
+          text,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontWeight: FontWeight.w500),
+        ),
       ),
     );
   }
@@ -833,7 +865,11 @@ class _TableCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         boxShadow: const [
-          BoxShadow(blurRadius: 18, offset: Offset(0, 8), color: Color(0x11000000)),
+          BoxShadow(
+            blurRadius: 18,
+            offset: Offset(0, 8),
+            color: Color(0x11000000),
+          ),
         ],
       ),
       child: ClipRRect(
@@ -861,10 +897,27 @@ class _TableCard extends StatelessWidget {
             for (final r in rows)
               TableRow(
                 children: [
-                  _cell(Text(r.person.name, textAlign: TextAlign.center, softWrap: true)),
+                  _cell(
+                    InkWell(
+                      onTap: () => onOpenPerson(r.person.id),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+                        child: Text(
+                          r.person.name,
+                          textAlign: TextAlign.center,
+                          softWrap: true,
+                        ),
+                      ),
+                    ),
+                  ),
                   _cell(Text(r.pin.name, textAlign: TextAlign.center, softWrap: true)),
                   _cell(_dot(r.status)),
-                  _cell(Text(formatDateTime(r.pin.lastStatusOn), textAlign: TextAlign.center, softWrap: true)),
+                  _cell(Text(
+                    formatDateTime(r.pin.lastStatusOn),
+                    textAlign: TextAlign.center,
+                    softWrap: true,
+                  )),
                   _cell(
                     InkWell(
                       onTap: () => onRefresh(r.pin),
@@ -893,14 +946,39 @@ class _Block extends StatelessWidget {
   final bool titleBold;
   final Widget child;
 
+  /// ✅ NEW: make title clickable (used for Person blocks)
+  final VoidCallback? onTitleTap;
+
   const _Block({
     required this.title,
     required this.child,
     this.titleBold = true,
+    this.onTitleTap, // ✅ NEW
   });
 
   @override
   Widget build(BuildContext context) {
+    final hasTitle = title.trim().isNotEmpty;
+
+    Widget titleWidget = Text(
+      title,
+      style: TextStyle(
+        fontSize: 16,
+        fontWeight: titleBold ? FontWeight.w800 : FontWeight.normal,
+      ),
+    );
+
+    if (hasTitle && onTitleTap != null) {
+      titleWidget = InkWell(
+        onTap: onTitleTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+          child: titleWidget,
+        ),
+      );
+    }
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -908,21 +986,18 @@ class _Block extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         boxShadow: const [
-          BoxShadow(blurRadius: 18, offset: Offset(0, 8), color: Color(0x11000000)),
+          BoxShadow(
+            blurRadius: 18,
+            offset: Offset(0, 8),
+            color: Color(0x11000000),
+          ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (title.trim().isNotEmpty)
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: titleBold ? FontWeight.w800 : FontWeight.normal,
-              ),
-            ),
-          if (title.trim().isNotEmpty) const SizedBox(height: 10),
+          if (hasTitle) titleWidget,
+          if (hasTitle) const SizedBox(height: 10),
           child,
         ],
       ),
